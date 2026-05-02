@@ -6,6 +6,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
 import { useSearch } from "@/context/SearchContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
 import { hapticLight } from "@/hooks/useHaptic";
 import ItemCard from "@/components/ItemCard";
@@ -15,6 +16,7 @@ export default function ItemsScreen() {
   const { items } = useItems();
   const { colors } = useTheme();
   const { searchVisible, query, setQuery } = useSearch();
+  const { t } = useLanguage();
   const slideStyle = useTabSlide(0);
 
   const searchAnim = useSharedValue(0);
@@ -53,7 +55,7 @@ export default function ItemsScreen() {
           {searchVisible && (
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search items, people, categories..."
+              placeholder={t("searchPlaceholder")}
               placeholderTextColor={colors.textSecondary}
               value={query}
               onChangeText={setQuery}
@@ -77,7 +79,7 @@ export default function ItemsScreen() {
           ListHeaderComponent={
             <View>
               <View style={styles.titleRow}>
-                <Text style={[styles.screenTitle, { color: colors.text }]}>Items</Text>
+                <Text style={[styles.screenTitle, { color: colors.text }]}>{t("tabItems")}</Text>
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: colors.primary }]}
                   activeOpacity={0.8}
@@ -91,17 +93,17 @@ export default function ItemsScreen() {
               </View>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
                 {query.trim()
-                  ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""}`
-                  : `${items.length} item${items.length !== 1 ? "s" : ""} tracked`}
+                  ? `${filtered.length} ${filtered.length !== 1 ? t("resultPlural") : t("resultSingular")}`
+                  : `${items.length} ${items.length !== 1 ? t("itemPlural") : t("itemSingular")} ${t("tracked")}`}
               </Text>
             </View>
           }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="construct-outline" size={48} color={colors.border} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No items yet</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("noItemsYet")}</Text>
               <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                Tap + to add your first item
+                {t("tapToAdd")}
               </Text>
             </View>
           }

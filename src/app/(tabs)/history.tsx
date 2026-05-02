@@ -2,6 +2,7 @@ import { View, Text, FlatList, StyleSheet } from "react-native";
 import Animated from "react-native-reanimated";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
 import { categoryIcons } from "@/constants/categoryIcons";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 export default function HistoryScreen() {
   const { colors } = useTheme();
   const { returnedItems } = useItems();
+  const { t } = useLanguage();
   const slideStyle = useTabSlide(2);
 
   return (
@@ -20,18 +22,18 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <View>
-              <Text style={[styles.screenTitle, { color: colors.text }]}>History</Text>
+              <Text style={[styles.screenTitle, { color: colors.text }]}>{t("tabHistory")}</Text>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-                Returned items
+                {t("returnedItemsHeading")}
               </Text>
             </View>
           }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="time-outline" size={48} color={colors.border} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No history yet</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("noHistoryYet")}</Text>
               <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                Returned items will appear here
+                {t("returnedItemsAppearHere")}
               </Text>
             </View>
           }
@@ -49,7 +51,7 @@ export default function HistoryScreen() {
                   </Text>
                   {item.returnedDate && (
                     <Text style={[styles.date, { color: colors.textSecondary }]}>
-                      Returned {item.returnedDate}
+                      {t("returnedPrefix")} {item.returnedDate}
                     </Text>
                   )}
                 </View>

@@ -8,6 +8,7 @@ import { DefaultTheme, DarkTheme, ThemeProvider as NavigationThemeProvider } fro
 import { ItemsProvider } from "@/context/ItemsContext";
 import { SearchProvider } from "@/context/SearchContext";
 import { ThemeProvider as AppThemeProvider, useTheme } from "@/context/ThemeContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -44,6 +45,8 @@ function AppStack() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="categories" options={{ headerShown: false }} />
+        <Stack.Screen name="vehicles" options={{ headerShown: false }} />
         <Stack.Screen name="add-item" options={{ headerShown: false }} />
         <Stack.Screen name="item/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="move/[id]" options={{ headerShown: false }} />
@@ -68,11 +71,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppThemeProvider>
-        <ItemsProvider>
-          <SearchProvider>
-            <AppStack />
-          </SearchProvider>
-        </ItemsProvider>
+        <LanguageProvider>
+          <ItemsProvider>
+            <SearchProvider>
+              <AppStack />
+            </SearchProvider>
+          </ItemsProvider>
+        </LanguageProvider>
       </AppThemeProvider>
     </GestureHandlerRootView>
   );

@@ -19,13 +19,15 @@ import * as ImagePicker from "expo-image-picker";
 import ScreenHeader from "@/components/ScreenHeader";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { hapticLight, hapticSelection } from "@/hooks/useHaptic";
 import { FleetItem } from "@/types";
 
 export default function AddItemScreen() {
   const router = useRouter();
-  const { addItem, categories, vehicles } = useItems();
+  const { addItem, categories, vehicles, categoryMode } = useItems();
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState("");
@@ -37,7 +39,7 @@ export default function AddItemScreen() {
   const [imageUri, setImageUri] = useState<string | undefined>();
 
   const pickImage = () => {
-    const options = ["Take Photo", "Choose from Library", "Cancel"];
+    const options = [t("takePhoto"), t("chooseFromLibrary"), t("cancel")];
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         { options, cancelButtonIndex: 2 },
@@ -47,10 +49,10 @@ export default function AddItemScreen() {
         }
       );
     } else {
-      Alert.alert("Choose Image", undefined, [
-        { text: "Take Photo", onPress: launchCamera },
-        { text: "Choose from Library", onPress: launchLibrary },
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(t("chooseFromLibrary"), undefined, [
+        { text: t("takePhoto"), onPress: launchCamera },
+        { text: t("chooseFromLibrary"), onPress: launchLibrary },
+        { text: t("cancel"), style: "cancel" },
       ]);
     }
   };
@@ -58,7 +60,7 @@ export default function AddItemScreen() {
   const launchCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission required", "Camera permission is needed to take a photo.");
+      Alert.alert(t("permissionRequired"), t("cameraPermissionMsg"));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -74,7 +76,7 @@ export default function AddItemScreen() {
   const launchLibrary = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission required", "Photo library permission is needed to choose an image.");
+      Alert.alert(t("permissionRequired"), t("libraryPermissionMsg"));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -89,15 +91,15 @@ export default function AddItemScreen() {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert("Name required", "Please enter an item name.");
+      Alert.alert(t("nameRequiredTitle"), t("nameRequiredMsg"));
       return;
     }
     if (locationType === "person" && !assignedPerson.trim()) {
-      Alert.alert("Person required", "Please enter a person's name.");
+      Alert.alert(t("personRequiredTitle"), t("personRequiredMsg"));
       return;
     }
     if (locationType === "vehicle" && !assignedVehicle) {
-      Alert.alert("Vehicle required", "Please select a vehicle.");
+      Alert.alert(t("vehicleRequiredTitle"), t("vehicleRequiredMsg"));
       return;
     }
 
@@ -121,7 +123,7 @@ export default function AddItemScreen() {
       style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScreenHeader title="Add Item" />
+      <ScreenHeader title={t("addItemTitle")} />
       <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 32 }]}>
         {/* Image picker */}
         <TouchableOpacity
@@ -134,16 +136,16 @@ export default function AddItemScreen() {
           ) : (
             <>
               <Ionicons name="camera-outline" size={32} color={colors.textSecondary} />
-              <Text style={[styles.imagePickerText, { color: colors.textSecondary }]}>Add photo</Text>
+              <Text style={[styles.imagePickerText, { color: colors.textSecondary }]}>{t("addPhoto")}</Text>
             </>
           )}
         </TouchableOpacity>
 
         {/* Name */}
-        <Text style={[styles.label, { color: colors.textSecondary }]}>ITEM NAME</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelItemName")}</Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-          placeholder="e.g. Power drill"
+          placeholder={t("itemNamePlaceholder")}
           placeholderTextColor={colors.textSecondary}
           value={name}
           onChangeText={setName}
@@ -151,7 +153,17 @@ export default function AddItemScreen() {
         />
 
         {/* Category */}
-        <Text style={[styles.label, { color: colors.textSecondary }]}>CATEGORY</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelCategory")}</Text>
+        {categoryMode === "central" && (
+          <View style={styles.categoryHintRow}>
+            <Text style={[styles.categoryHintText, { color: colors.textSecondary }]}>
+              {t("categoryManagedCentrallyHint")}
+            </Text>
+            <TouchableOpacity onPress={() => router.push("/categories")}>
+              <Text style={[styles.categoryHintLink, { color: colors.primary }]}>{t("manageCategories")}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
           {categories.map((cat) => (
             <TouchableOpacity
@@ -161,9 +173,14 @@ export default function AddItemScreen() {
                 {
                   backgroundColor: category === cat ? colors.primary : colors.cardBackground,
                   borderColor: category === cat ? colors.primary : colors.border,
+                  opacity: categoryMode === "central" ? 0.75 : 1,
                 },
               ]}
-              onPress={() => { hapticSelection(); setCategory(cat); }}
+              disabled={categoryMode === "central"}
+              onPress={() => {
+                hapticSelection();
+                setCategory(cat);
+              }}
             >
               <Text style={{ color: category === cat ? colors.white : colors.text, fontSize: 14 }}>
                 {cat}
@@ -173,7 +190,7 @@ export default function AddItemScreen() {
         </ScrollView>
 
         {/* Location type */}
-        <Text style={[styles.label, { color: colors.textSecondary }]}>ASSIGN TO</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelAssignTo")}</Text>
         <View style={styles.locationToggle}>
           <TouchableOpacity
             style={[
@@ -191,7 +208,7 @@ export default function AddItemScreen() {
               color={locationType === "person" ? colors.white : colors.text}
             />
             <Text style={{ color: locationType === "person" ? colors.white : colors.text, fontSize: 14 }}>
-              Person
+              {t("labelPerson")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -210,7 +227,7 @@ export default function AddItemScreen() {
               color={locationType === "vehicle" ? colors.white : colors.text}
             />
             <Text style={{ color: locationType === "vehicle" ? colors.white : colors.text, fontSize: 14 }}>
-              Vehicle
+              {t("labelVehicle")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -218,10 +235,10 @@ export default function AddItemScreen() {
         {/* Person / Vehicle selector */}
         {locationType === "person" ? (
           <>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>PERSON NAME</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelPersonName")}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-              placeholder="e.g. Marcus"
+              placeholder={t("personNamePlaceholder")}
               placeholderTextColor={colors.textSecondary}
               value={assignedPerson}
               onChangeText={setAssignedPerson}
@@ -230,7 +247,7 @@ export default function AddItemScreen() {
           </>
         ) : (
           <>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>VEHICLE</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelVehicleSection")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
               {vehicles.map((v) => (
                 <TouchableOpacity
@@ -244,11 +261,6 @@ export default function AddItemScreen() {
                   ]}
                   onPress={() => { hapticSelection(); setAssignedVehicle(v.id); }}
                 >
-                  <Ionicons
-                    name="car-outline"
-                    size={14}
-                    color={assignedVehicle === v.id ? colors.white : colors.text}
-                  />
                   <Text style={{ color: assignedVehicle === v.id ? colors.white : colors.text, fontSize: 14 }}>
                     {v.name}
                   </Text>
@@ -259,10 +271,10 @@ export default function AddItemScreen() {
         )}
 
         {/* Notes */}
-        <Text style={[styles.label, { color: colors.textSecondary }]}>NOTES (OPTIONAL)</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelNotes")}</Text>
         <TextInput
           style={[styles.input, styles.notesInput, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-          placeholder="Serial number, condition, etc."
+          placeholder={t("notesPlaceholder")}
           placeholderTextColor={colors.textSecondary}
           value={notes}
           onChangeText={setNotes}
@@ -276,7 +288,7 @@ export default function AddItemScreen() {
           activeOpacity={0.85}
           onPress={handleSave}
         >
-          <Text style={[styles.saveText, { color: colors.white }]}>Save Item</Text>
+          <Text style={[styles.saveText, { color: colors.white }]}>{t("saveItem")}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -310,6 +322,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 8,
     marginTop: 4,
+  },
+  categoryHintRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  categoryHintText: {
+    flex: 1,
+    fontSize: 12,
+  },
+  categoryHintLink: {
+    fontSize: 12,
+    fontFamily: "Roboto_500Medium",
   },
   input: {
     borderWidth: 1,

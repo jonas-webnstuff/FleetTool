@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { hapticLight } from "@/hooks/useHaptic";
 import ScreenHeader from "@/components/ScreenHeader";
 
@@ -19,6 +20,7 @@ export default function MoveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { items, vehicles, moveItem } = useItems();
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const router = useRouter();
   const [newPersonName, setNewPersonName] = useState("");
 
@@ -47,19 +49,19 @@ export default function MoveScreen() {
   if (!item) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Item not found</Text>
+        <Text style={{ color: colors.text }}>{t("itemNotFound")}</Text>
       </View>
     );
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Move Item" />
+      <ScreenHeader title={t("moveItemTitle")} />
       <SectionList
         contentContainerStyle={styles.listContent}
         sections={[
-          { title: "People", data: people, key: "people" },
-          { title: "Vehicles", data: vehicles, key: "vehicles" },
+          { title: t("people"), data: people, key: "people" },
+          { title: t("vehicles"), data: vehicles, key: "vehicles" },
         ]}
         keyExtractor={(item) =>
           typeof item === "string" ? item : (item as { id: string }).id
@@ -67,14 +69,14 @@ export default function MoveScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Select where to move "{item.name}"
+              {t("selectMoveTarget", { name: item.name })}
             </Text>
 
             {/* New person input */}
             <View style={[styles.newPersonRow, { borderColor: colors.border }]}>
               <TextInput
                 style={[styles.newPersonInput, { color: colors.text }]}
-                placeholder="New person name..."
+              placeholder={t("newPersonPlaceholder")}
                 placeholderTextColor={colors.textSecondary}
                 value={newPersonName}
                 onChangeText={setNewPersonName}

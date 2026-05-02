@@ -3,6 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import ItemCard from "@/components/ItemCard";
 import ScreenHeader from "@/components/ScreenHeader";
 
@@ -10,14 +11,14 @@ export default function VehicleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { items, vehicles } = useItems();
   const { colors } = useTheme();
-
+  const { t } = useLanguage();
   const vehicle = vehicles.find((v) => v.id === id);
   const vehicleItems = items.filter((i) => i.locationType === "vehicle" && i.assignedVehicle === id);
 
   if (!vehicle) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Vehicle not found</Text>
+        <Text style={{ color: colors.text }}>{t("vehicleNotFound")}</Text>
       </View>
     );
   }
@@ -36,13 +37,13 @@ export default function VehicleScreen() {
             </View>
             <Text style={[styles.name, { color: colors.text }]}>{vehicle.name}</Text>
             <Text style={[styles.count, { color: colors.textSecondary }]}>
-              {vehicleItems.length} item{vehicleItems.length !== 1 ? "s" : ""}
+              {vehicleItems.length} {vehicleItems.length !== 1 ? t("itemPlural") : t("itemSingular")}
             </Text>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No items assigned</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noItemsAssigned")}</Text>
           </View>
         }
         renderItem={({ item }) => <ItemCard item={item} />}

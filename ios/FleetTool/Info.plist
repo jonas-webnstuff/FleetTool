@@ -28,7 +28,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>fleettool</string>
-				<string>com.fleettool.app</string>
+				<string>com.webnstuff.fleettool</string>
 			</array>
 		</dict>
 		<dict>

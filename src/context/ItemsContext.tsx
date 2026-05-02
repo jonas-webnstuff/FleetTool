@@ -6,6 +6,8 @@ const ITEMS_KEY = "fleettool_items";
 const RETURNED_KEY = "fleettool_returned";
 const VEHICLES_KEY = "fleettool_vehicles";
 const CATEGORIES_KEY = "fleettool_categories";
+const CATEGORY_MODE_KEY = "fleettool_category_mode";
+const VEHICLE_MODE_KEY = "fleettool_vehicle_mode";
 
 const DEFAULT_CATEGORIES = ["Tools", "Safety", "Electronics", "Measuring", "Power", "Other"];
 
@@ -19,6 +21,8 @@ type ItemsContextType = {
   returnedItems: FleetItem[];
   vehicles: Vehicle[];
   categories: string[];
+  categoryMode: "local" | "central";
+  vehicleMode: "local" | "central";
   isLoaded: boolean;
   addItem: (item: Omit<FleetItem, "id">) => void;
   updateItem: (id: string, updates: Partial<FleetItem>) => void;
@@ -31,9 +35,12 @@ type ItemsContextType = {
     assignedVehicle?: string
   ) => void;
   addVehicle: (name: string) => void;
+  updateVehicle: (id: string, name: string) => void;
   removeVehicle: (id: string) => void;
   addCategory: (name: string) => void;
   removeCategory: (name: string) => void;
+  setCategoryMode: (mode: "local" | "central") => void;
+  setVehicleMode: (mode: "local" | "central") => void;
 };
 
 function safeParseJson<T>(value: string | null, fallback: T): T {
@@ -52,21 +59,27 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const [returnedItems, setReturnedItems] = useState<FleetItem[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>(DEFAULT_VEHICLES);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categoryMode, setCategoryModeState] = useState<"local" | "central">("local");
+  const [vehicleMode, setVehicleModeState] = useState<"local" | "central">("local");
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [storedItems, storedReturned, storedVehicles, storedCategories] = await Promise.all([
+      const [storedItems, storedReturned, storedVehicles, storedCategories, storedCategoryMode, storedVehicleMode] = await Promise.all([
         AsyncStorage.getItem(ITEMS_KEY),
         AsyncStorage.getItem(RETURNED_KEY),
         AsyncStorage.getItem(VEHICLES_KEY),
         AsyncStorage.getItem(CATEGORIES_KEY),
+        AsyncStorage.getItem(CATEGORY_MODE_KEY),
+        AsyncStorage.getItem(VEHICLE_MODE_KEY),
       ]);
 
       setItems(safeParseJson<FleetItem[]>(storedItems, []));
       setReturnedItems(safeParseJson<FleetItem[]>(storedReturned, []));
       setVehicles(safeParseJson<Vehicle[]>(storedVehicles, DEFAULT_VEHICLES));
       setCategories(safeParseJson<string[]>(storedCategories, DEFAULT_CATEGORIES));
+      setCategoryModeState(storedCategoryMode === "central" ? "central" : "local");
+      setVehicleModeState(storedVehicleMode === "central" ? "central" : "local");
       setIsLoaded(true);
     })();
   }, []);
@@ -90,6 +103,16 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     if (!isLoaded) return;
     void AsyncStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
   }, [categories, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    void AsyncStorage.setItem(CATEGORY_MODE_KEY, categoryMode);
+  }, [categoryMode, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    void AsyncStorage.setItem(VEHICLE_MODE_KEY, vehicleMode);
+  }, [vehicleMode, isLoaded]);
 
   const addItem = (item: Omit<FleetItem, "id">) => {
     const newItem: FleetItem = { ...item, id: Date.now().toString() };
@@ -132,6 +155,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     setVehicles((prev) => [...prev, newVehicle]);
   };
 
+  const updateVehicle = (id: string, name: string) => {
+    setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, name } : v)));
+  };
+
   const removeVehicle = (id: string) => {
     setVehicles((prev) => prev.filter((v) => v.id !== id));
   };
@@ -144,6 +171,14 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     setCategories((prev) => prev.filter((c) => c !== name));
   };
 
+  const setCategoryMode = (mode: "local" | "central") => {
+    setCategoryModeState(mode);
+  };
+
+  const setVehicleMode = (mode: "local" | "central") => {
+    setVehicleModeState(mode);
+  };
+
   return (
     <ItemsContext.Provider
       value={{
@@ -151,6 +186,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         returnedItems,
         vehicles,
         categories,
+        categoryMode,
+        vehicleMode,
         isLoaded,
         addItem,
         updateItem,
@@ -158,9 +195,12 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         returnItem,
         moveItem,
         addVehicle,
+        updateVehicle,
         removeVehicle,
         addCategory,
         removeCategory,
+        setCategoryMode,
+        setVehicleMode,
       }}
     >
       {children}

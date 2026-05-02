@@ -3,6 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { categoryIcons } from "@/constants/categoryIcons";
 import ItemCard from "@/components/ItemCard";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -11,6 +12,7 @@ export default function PersonScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const { items } = useItems();
   const { colors } = useTheme();
+  const { t } = useLanguage();
 
   const decodedName = decodeURIComponent(name);
   const personItems = items.filter(
@@ -31,13 +33,13 @@ export default function PersonScreen() {
             </View>
             <Text style={[styles.name, { color: colors.text }]}>{decodedName}</Text>
             <Text style={[styles.count, { color: colors.textSecondary }]}>
-              {personItems.length} item{personItems.length !== 1 ? "s" : ""}
+              {personItems.length} {personItems.length !== 1 ? t("itemPlural") : t("itemSingular")}
             </Text>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No items assigned</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noItemsAssigned")}</Text>
           </View>
         }
         renderItem={({ item }) => <ItemCard item={item} />}

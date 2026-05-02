@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useSearch } from "@/context/SearchContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { hapticLight } from "@/hooks/useHaptic";
 
 export default function TabLayout() {
@@ -11,6 +12,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { searchVisible, toggleSearch } = useSearch();
+  const { t } = useLanguage();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -55,7 +57,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: "Items",
+            title: t("tabItems"),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="construct-outline" size={size} color={color} />
             ),
@@ -64,16 +66,16 @@ export default function TabLayout() {
         <Tabs.Screen
           name="locations"
           options={{
-            title: "Locations",
+            title: t("tabLocations"),
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="map-outline" size={size} color={color} />
+              <Ionicons name="car-sport-outline" size={size} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="history"
           options={{
-            title: "History",
+            title: t("tabHistory"),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="time-outline" size={size} color={color} />
             ),

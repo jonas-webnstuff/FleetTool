@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   View,
   Text,
-  FlatList,
   SectionList,
   StyleSheet,
   TouchableOpacity,
@@ -10,21 +9,29 @@ import {
   TextInput,
   Modal,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
 import { hapticLight } from "@/hooks/useHaptic";
+
+const EDIT_ORANGE = "#F57C00";
 
 export default function LocationsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, vehicles, addVehicle, removeVehicle } = useItems();
+  const { items, vehicles, addVehicle, updateVehicle, removeVehicle, vehicleMode } = useItems();
+  const { t } = useLanguage();
   const slideStyle = useTabSlide(1);
   const [addVehicleVisible, setAddVehicleVisible] = useState(false);
   const [newVehicleName, setNewVehicleName] = useState("");
+  const [editVehicleVisible, setEditVehicleVisible] = useState(false);
+  const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
+  const [editVehicleName, setEditVehicleName] = useState("");
 
   const people = [...new Set(items.filter((i) => i.locationType === "person" && i.assignedPerson).map((i) => i.assignedPerson!))]
     .map((name) => ({
@@ -46,11 +53,40 @@ export default function LocationsScreen() {
   };
 
   const handleRemoveVehicle = (id: string, name: string) => {
-    Alert.alert("Remove vehicle", `Remove "${name}"? Items assigned to it won't be deleted.`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => removeVehicle(id) },
+    Alert.alert(t("removeVehicleTitle"), t("removeVehicleBody", { name }), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("removeVehicleTitle"), style: "destructive", onPress: () => removeVehicle(id) },
     ]);
   };
+
+  const handleOpenEditVehicle = (id: string, name: string) => {
+    setEditVehicleId(id);
+    setEditVehicleName(name);
+    setEditVehicleVisible(true);
+  };
+
+  const handleSaveEditedVehicle = () => {
+    const name = editVehicleName.trim();
+    if (!name || !editVehicleId) return;
+    updateVehicle(editVehicleId, name);
+    setEditVehicleVisible(false);
+    setEditVehicleId(null);
+    setEditVehicleName("");
+  };
+
+  const renderDeleteAction = () => (
+    <View style={[styles.swipeAction, styles.swipeDelete, { backgroundColor: "#C62828" }]}>
+      <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>{t("deleteAction")}</Text>
+    </View>
+  );
+
+  const renderEditAction = () => (
+    <View style={[styles.swipeAction, styles.swipeEdit, { backgroundColor: EDIT_ORANGE }]}>
+      <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>{t("editAction")}</Text>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -59,26 +95,33 @@ export default function LocationsScreen() {
           contentContainerStyle={styles.listContent}
           sections={[
             {
-              title: "People",
+              title: t("people"),
               data: people,
               key: "people",
             },
             {
-              title: "Vehicles",
+              title: t("vehicles"),
               data: vehicleRows,
               key: "vehicles",
             },
           ]}
           keyExtractor={(item) => ("id" in item ? item.id : item.name)}
           ListHeaderComponent={
-            <Text style={[styles.screenTitle, { color: colors.text }]}>Locations</Text>
+            <View>
+              <Text style={[styles.screenTitle, { color: colors.text }]}>{t("locationsTitle")}</Text>
+              {vehicleMode === "central" && (
+                <TouchableOpacity onPress={() => router.push("/vehicles")} activeOpacity={0.8}>
+                  <Text style={[styles.centralHint, { color: colors.textSecondary }]}>{t("vehiclesManagedCentrallyHint")}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           }
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
                 {section.title}
               </Text>
-              {section.key === "vehicles" && (
+              {section.key === "vehicles" && vehicleMode === "local" && (
                 <TouchableOpacity
                   onPress={() => {
                     hapticLight();
@@ -105,7 +148,7 @@ export default function LocationsScreen() {
                   <View style={styles.info}>
                     <Text style={[styles.name, { color: colors.text }]}>{person.name}</Text>
                     <Text style={[styles.count, { color: colors.textSecondary }]}>
-                      {person.count} item{person.count !== 1 ? "s" : ""}
+                      {person.count} {person.count !== 1 ? t("itemPlural") : t("itemSingular")}
                     </Text>
                   </View>
                   <Text style={[styles.chevron, { color: colors.border }]}>›</Text>
@@ -114,36 +157,72 @@ export default function LocationsScreen() {
             }
 
             const vehicle = item as { id: string; name: string; count: number };
+            if (vehicleMode === "central") {
+              return (
+                <TouchableOpacity
+                  style={[styles.card, { backgroundColor: colors.cardBackground }]}
+                  activeOpacity={0.7}
+                  onPress={() => router.push(`/vehicle/${vehicle.id}`)}
+                >
+                  <View style={[styles.avatar, { backgroundColor: colors.vehicleBadgeBg }]}> 
+                    <Ionicons name="car" size={22} color={colors.primary} />
+                  </View>
+                  <View style={styles.info}>
+                    <Text style={[styles.name, { color: colors.text }]}>{vehicle.name}</Text>
+                    <Text style={[styles.count, { color: colors.textSecondary }]}> 
+                      {vehicle.count} {vehicle.count !== 1 ? t("itemPlural") : t("itemSingular")}
+                    </Text>
+                  </View>
+                  <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              );
+            }
+
             return (
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: colors.cardBackground }]}
-                activeOpacity={0.7}
-                onPress={() => router.push(`/vehicle/${vehicle.id}`)}
-                onLongPress={() => handleRemoveVehicle(vehicle.id, vehicle.name)}
+              <Swipeable
+                overshootLeft={false}
+                overshootRight={false}
+                leftThreshold={40}
+                rightThreshold={40}
+                renderLeftActions={renderEditAction}
+                renderRightActions={renderDeleteAction}
+                onSwipeableOpen={(direction) => {
+                  if (direction === "right") {
+                    handleRemoveVehicle(vehicle.id, vehicle.name);
+                    return;
+                  }
+                  handleOpenEditVehicle(vehicle.id, vehicle.name);
+                }}
               >
-                <View style={[styles.avatar, { backgroundColor: colors.vehicleBadgeBg }]}>
-                  <Ionicons name="car" size={22} color={colors.primary} />
-                </View>
-                <View style={styles.info}>
-                  <Text style={[styles.name, { color: colors.text }]}>{vehicle.name}</Text>
-                  <Text style={[styles.count, { color: colors.textSecondary }]}>
-                    {vehicle.count} item{vehicle.count !== 1 ? "s" : ""}
-                  </Text>
-                </View>
-                <Text style={[styles.chevron, { color: colors.border }]}>›</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.card, { backgroundColor: colors.cardBackground }]}
+                  activeOpacity={0.7}
+                  onPress={() => router.push(`/vehicle/${vehicle.id}`)}
+                >
+                  <View style={[styles.avatar, { backgroundColor: colors.vehicleBadgeBg }]}> 
+                    <Ionicons name="car" size={22} color={colors.primary} />
+                  </View>
+                  <View style={styles.info}>
+                    <Text style={[styles.name, { color: colors.text }]}>{vehicle.name}</Text>
+                    <Text style={[styles.count, { color: colors.textSecondary }]}> 
+                      {vehicle.count} {vehicle.count !== 1 ? t("itemPlural") : t("itemSingular")}
+                    </Text>
+                  </View>
+                  <Text style={[styles.chevron, { color: colors.border }]}>›</Text>
+                </TouchableOpacity>
+              </Swipeable>
             );
           }}
         />
       </Animated.View>
 
-      <Modal visible={addVehicleVisible} transparent animationType="fade">
+      <Modal visible={addVehicleVisible && vehicleMode === "local"} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Add Vehicle</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("addVehicleTitle")}</Text>
             <TextInput
               style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
-              placeholder="e.g. Truck 03"
+              placeholder={t("vehicleNamePlaceholder")}
               placeholderTextColor={colors.textSecondary}
               value={newVehicleName}
               onChangeText={setNewVehicleName}
@@ -159,13 +238,49 @@ export default function LocationsScreen() {
                   setAddVehicleVisible(false);
                 }}
               >
-                <Text style={{ color: colors.textSecondary }}>Cancel</Text>
+                <Text style={{ color: colors.textSecondary }}>{t("cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalConfirm, { backgroundColor: colors.primary }]}
                 onPress={handleAddVehicle}
               >
-                <Text style={{ color: colors.white, fontFamily: "Roboto_500Medium" }}>Add</Text>
+                <Text style={{ color: colors.white, fontFamily: "Roboto_500Medium" }}>{t("add")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={editVehicleVisible && vehicleMode === "local"} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}> 
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("editVehicleTitle")}</Text>
+            <TextInput
+              style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
+              placeholder={t("editVehicleNamePlaceholder")}
+              placeholderTextColor={colors.textSecondary}
+              value={editVehicleName}
+              onChangeText={setEditVehicleName}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSaveEditedVehicle}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => {
+                  setEditVehicleVisible(false);
+                  setEditVehicleId(null);
+                  setEditVehicleName("");
+                }}
+              >
+                <Text style={{ color: colors.textSecondary }}>{t("cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirm, { backgroundColor: EDIT_ORANGE }]}
+                onPress={handleSaveEditedVehicle}
+              >
+                <Text style={{ color: colors.white, fontFamily: "Roboto_500Medium" }}>{t("editAction")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -184,7 +299,11 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "600",
     marginTop: 12,
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  centralHint: {
+    fontSize: 12,
+    marginBottom: 8,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -210,6 +329,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
+  },
+  swipeAction: {
+    width: 96,
+    marginBottom: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  swipeDelete: {
+    marginRight: 8,
+  },
+  swipeEdit: {
+    marginLeft: 8,
+  },
+  swipeActionText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: "Roboto_500Medium",
   },
   avatar: {
     width: 44,

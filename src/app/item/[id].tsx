@@ -12,6 +12,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { categoryIcons } from "@/constants/categoryIcons";
 import { hapticLight, hapticMedium } from "@/hooks/useHaptic";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -20,6 +21,7 @@ export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { items, returnedItems, returnItem, vehicles } = useItems();
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -42,7 +44,7 @@ export default function ItemDetailScreen() {
   if (!item) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>Item not found</Text>
+        <Text style={{ color: colors.text }}>{t("itemNotFound")}</Text>
       </View>
     );
   }
@@ -59,10 +61,10 @@ export default function ItemDetailScreen() {
   const locationIcon = item.locationType === "vehicle" ? "car-outline" : "person-outline";
 
   const handleReturn = () => {
-    Alert.alert("Mark as returned", `Mark "${item.name}" as returned?`, [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("markAsReturnedTitle"), t("markAsReturnedBody", { name: item.name }), [
+      { text: t("cancel"), style: "cancel" },
       {
-        text: "Confirm",
+        text: t("confirm"),
         onPress: () => {
           hapticMedium();
           returnItem(item.id);
@@ -97,13 +99,13 @@ export default function ItemDetailScreen() {
         <View style={[styles.infoCard, { backgroundColor: colors.cardBackground }]}>
           <View style={styles.infoRow}>
             <Ionicons name={locationIcon as any} size={18} color={colors.primary} />
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Location</Text>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{t("locationLabel")}</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>{locationLabel()}</Text>
           </View>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Added</Text>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{t("addedLabel")}</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>{item.addedDate}</Text>
           </View>
           {item.returnedDate && (
@@ -111,7 +113,7 @@ export default function ItemDetailScreen() {
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.infoRow}>
                 <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Returned</Text>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{t("returnedLabel")}</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>{item.returnedDate}</Text>
               </View>
             </>
@@ -121,7 +123,7 @@ export default function ItemDetailScreen() {
         {/* Notes */}
         {!!item.notes && (
           <View style={[styles.infoCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes</Text>
+            <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>{t("notesLabel")}</Text>
             <Text style={[styles.notesText, { color: colors.text }]}>{item.notes}</Text>
           </View>
         )}
@@ -138,7 +140,7 @@ export default function ItemDetailScreen() {
               }}
             >
               <Ionicons name="swap-horizontal-outline" size={20} color={colors.white} />
-              <Text style={[styles.actionText, { color: colors.white }]}>Move</Text>
+              <Text style={[styles.actionText, { color: colors.white }]}>{t("moveAction")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.border }]}
@@ -146,7 +148,7 @@ export default function ItemDetailScreen() {
               onPress={handleReturn}
             >
               <Ionicons name="checkmark-done-outline" size={20} color={colors.text} />
-              <Text style={[styles.actionText, { color: colors.text }]}>Mark returned</Text>
+              <Text style={[styles.actionText, { color: colors.text }]}>{t("markReturnedAction")}</Text>
             </TouchableOpacity>
           </View>
         )}
