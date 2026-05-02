@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "FleetTool",
+    "slug": "fleettool",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "fleettool",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fleettool.app"
+    },
+    "android": {
+      "package": "com.fleettool.app"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1A3A5C"
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/roboto/400Regular/Roboto_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/roboto/500Medium/Roboto_500Medium.ttf",
+            "./node_modules/@expo-google-fonts/roboto/700Bold/Roboto_700Bold.ttf"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
