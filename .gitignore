@@ -4,3 +4,28 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+
+# Native (regenerated via npx expo prebuild)
+ios/
+android/
+
+# Build artifacts
+*.jsbundle
+
+# Environment variables
+.env
+.env.local
+.env*.local
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
