@@ -1,0 +1,212 @@
+{
+  "project": "FleetTool",
+  "created": "2026-05-02",
+  "notes": "Roadmap tickets for mobile-first launch with central backend and staged web admin.",
+  "tickets": [
+    {
+      "id": "FT-101",
+      "title": "Define product tiers and feature flags",
+      "priority": "P0",
+      "area": "Product",
+      "milestone": "Phase 1",
+      "description": "Lock Starter, Growth, and Pro scope and map each feature to a runtime flag.",
+      "acceptanceCriteria": [
+        "Tier matrix approved by team",
+        "Each premium feature mapped to a flag key",
+        "Out-of-scope items parked in backlog"
+      ],
+      "estimateDays": 1,
+      "dependencies": []
+    },
+    {
+      "id": "FT-102",
+      "title": "Set up backend project and environments",
+      "priority": "P0",
+      "area": "Backend",
+      "milestone": "Phase 1",
+      "description": "Create backend service, dev/stage/prod environments, and secret management.",
+      "acceptanceCriteria": [
+        "Backend repo initialized",
+        "Dev and stage environments working",
+        "Secrets are not stored in source control"
+      ],
+      "estimateDays": 2,
+      "dependencies": [
+        "FT-101"
+      ]
+    },
+    {
+      "id": "FT-103",
+      "title": "Create core database schema",
+      "priority": "P0",
+      "area": "Backend",
+      "milestone": "Phase 1",
+      "description": "Implement tables for companies, users, vehicles, items, and item_movements with indexes.",
+      "acceptanceCriteria": [
+        "Migration scripts created",
+        "Foreign keys and indexes in place",
+        "Seed script for local dev"
+      ],
+      "estimateDays": 2,
+      "dependencies": [
+        "FT-102"
+      ]
+    },
+    {
+      "id": "FT-104",
+      "title": "Implement auth and company scoping",
+      "priority": "P0",
+      "area": "Backend",
+      "milestone": "Phase 1",
+      "description": "Add sign-in and enforce multi-tenant company scoping on all queries.",
+      "acceptanceCriteria": [
+        "Users can sign in and receive tokens",
+        "Requests cannot read data from other companies",
+        "Integration tests cover tenant isolation"
+      ],
+      "estimateDays": 3,
+      "dependencies": [
+        "FT-103"
+      ]
+    },
+    {
+      "id": "FT-105",
+      "title": "Build API for items, vehicles, and movement log",
+      "priority": "P0",
+      "area": "Backend",
+      "milestone": "Phase 1",
+      "description": "Expose CRUD endpoints plus append-only movement events with timestamps and actor.",
+      "acceptanceCriteria": [
+        "OpenAPI spec published",
+        "API supports list/filter for mobile needs",
+        "Movement events are immutable"
+      ],
+      "estimateDays": 4,
+      "dependencies": [
+        "FT-104"
+      ]
+    },
+    {
+      "id": "FT-106",
+      "title": "Wire mobile app to backend sync",
+      "priority": "P0",
+      "area": "Mobile",
+      "milestone": "Phase 1",
+      "description": "Replace local-only state with online sync and offline queue for changes.",
+      "acceptanceCriteria": [
+        "App reads from backend after login",
+        "Creates and moves sync correctly",
+        "Offline changes replay when connection returns"
+      ],
+      "estimateDays": 5,
+      "dependencies": [
+        "FT-105"
+      ]
+    },
+    {
+      "id": "FT-107",
+      "title": "Implement role model (Admin and Field User)",
+      "priority": "P1",
+      "area": "Backend",
+      "milestone": "Phase 2",
+      "description": "Add role-based access for admin workflows versus field workflows.",
+      "acceptanceCriteria": [
+        "Role claims included in auth token",
+        "Admin-only endpoints blocked for field users",
+        "Permission matrix documented"
+      ],
+      "estimateDays": 2,
+      "dependencies": [
+        "FT-104"
+      ]
+    },
+    {
+      "id": "FT-108",
+      "title": "Create web admin skeleton",
+      "priority": "P1",
+      "area": "Web",
+      "milestone": "Phase 2",
+      "description": "Create a basic web app with login and protected admin layout.",
+      "acceptanceCriteria": [
+        "Admin can sign in",
+        "Navigation for Items, Vehicles, Movements",
+        "Unauthorized users are redirected"
+      ],
+      "estimateDays": 3,
+      "dependencies": [
+        "FT-107"
+      ]
+    },
+    {
+      "id": "FT-109",
+      "title": "Build web list and search views",
+      "priority": "P1",
+      "area": "Web",
+      "milestone": "Phase 2",
+      "description": "Implement table views with filters for tools, vehicles, and latest movements.",
+      "acceptanceCriteria": [
+        "Search by tool name and serial",
+        "Filter by vehicle or assigned person",
+        "Movement list sorted by newest first"
+      ],
+      "estimateDays": 4,
+      "dependencies": [
+        "FT-108",
+        "FT-105"
+      ]
+    },
+    {
+      "id": "FT-110",
+      "title": "Add Starter and Growth billing gates",
+      "priority": "P1",
+      "area": "Platform",
+      "milestone": "Phase 2",
+      "description": "Enforce plan limits and feature gates for user and vehicle caps plus web admin access.",
+      "acceptanceCriteria": [
+        "Plan limits are validated server-side",
+        "Starter cannot access Growth-only web features",
+        "Upgrade path messaging shown in app and web"
+      ],
+      "estimateDays": 3,
+      "dependencies": [
+        "FT-101",
+        "FT-109"
+      ]
+    },
+    {
+      "id": "FT-111",
+      "title": "Add operational reports",
+      "priority": "P2",
+      "area": "Web",
+      "milestone": "Phase 3",
+      "description": "Create reports for missing items and inactive items over configurable days.",
+      "acceptanceCriteria": [
+        "Missing items report available",
+        "Inactive items report configurable",
+        "CSV export works for both reports"
+      ],
+      "estimateDays": 3,
+      "dependencies": [
+        "FT-109"
+      ]
+    },
+    {
+      "id": "FT-112",
+      "title": "Add Pro features: handover confirmation and incident photos",
+      "priority": "P2",
+      "area": "Mobile+Backend",
+      "milestone": "Phase 3",
+      "description": "Track accepted handovers with signature/ack and support damage or loss photo evidence.",
+      "acceptanceCriteria": [
+        "Handover event includes from/to, time, and confirmation",
+        "Incident photos stored with metadata",
+        "Pro flag required to use these flows"
+      ],
+      "estimateDays": 5,
+      "dependencies": [
+        "FT-110",
+        "FT-106"
+      ]
+    }
+  ]
+}
