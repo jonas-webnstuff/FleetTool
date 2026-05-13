@@ -46,6 +46,7 @@ type ItemsContextType = {
     assignedPerson?: string,
     assignedVehicle?: string
   ) => void;
+  assignItemsToVehicle: (itemIds: string[], vehicleId: string) => void;
   addVehicle: (name: string) => void;
   updateVehicle: (id: string, name: string) => void;
   removeVehicle: (id: string) => void;
@@ -484,6 +485,46 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const assignItemsToVehicle = (itemIds: string[], vehicleId: string) => {
+    if (!canManageLoadout || itemIds.length === 0) {
+      if (!canManageLoadout) {
+        console.warn("assignItemsToVehicle blocked by role policy");
+      }
+      return;
+    }
+
+    if (itemMode === "central") {
+      void supabase
+        .from("items")
+        .update({
+          assignment_type: "vehicle",
+          vehicle_id: vehicleId,
+          assigned_membership_id: null,
+          status: "assigned",
+        })
+        .in("id", itemIds)
+        .then(({ error }) => {
+          if (!error) {
+            setItems((prev) =>
+              prev.map((i) =>
+                itemIds.includes(i.id)
+                  ? { ...i, locationType: "vehicle", assignedVehicle: vehicleId, assignedPerson: undefined }
+                  : i
+              )
+            );
+          }
+        });
+    } else {
+      setItems((prev) =>
+        prev.map((i) =>
+          itemIds.includes(i.id)
+            ? { ...i, locationType: "vehicle", assignedVehicle: vehicleId, assignedPerson: undefined }
+            : i
+        )
+      );
+    }
+  };
+
   // ─── Vehicles mutations ───────────────────────────────────────────────────
   const addVehicle = (name: string) => {
     if (vehicleMode === "central" && companyId) {
@@ -598,6 +639,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         deleteItem,
         returnItem,
         moveItem,
+        assignItemsToVehicle,
         addVehicle,
         updateVehicle,
         removeVehicle,
