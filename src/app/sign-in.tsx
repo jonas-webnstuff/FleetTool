@@ -60,7 +60,7 @@ export default function SignInScreen() {
 
     const membershipFullName = membershipRows?.[0]?.full_name as string | null | undefined;
     if (membershipFullName) {
-      setPendingClerkNameSync({
+      await setPendingClerkNameSync({
         fullName: membershipFullName,
         email: normalizedEmail,
       });

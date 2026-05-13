@@ -25,7 +25,7 @@ import { FleetItem } from "@/types";
 
 export default function AddItemScreen() {
   const router = useRouter();
-  const { addItem, categories, vehicles, categoryMode } = useItems();
+  const { addItem, categories, vehicles, members, categoryMode, itemMode } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -33,7 +33,9 @@ export default function AddItemScreen() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState(categories[0] ?? "Other");
   const [locationType, setLocationType] = useState<FleetItem["locationType"]>("person");
-  const [assignedPerson, setAssignedPerson] = useState("");
+  const [assignedPerson, setAssignedPerson] = useState(
+    itemMode === "central" ? (members[0]?.fullName ?? "") : ""
+  );
   const [assignedVehicle, setAssignedVehicle] = useState(vehicles[0]?.id ?? "");
   const [notes, setNotes] = useState("");
   const [imageUri, setImageUri] = useState<string | undefined>();
@@ -236,14 +238,36 @@ export default function AddItemScreen() {
         {locationType === "person" ? (
           <>
             <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelPersonName")}</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-              placeholder={t("personNamePlaceholder")}
-              placeholderTextColor={colors.textSecondary}
-              value={assignedPerson}
-              onChangeText={setAssignedPerson}
-              returnKeyType="next"
-            />
+              {itemMode === "central" ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                  {members.map((m) => (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: assignedPerson === m.fullName ? colors.primary : colors.cardBackground,
+                          borderColor: assignedPerson === m.fullName ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => { hapticSelection(); setAssignedPerson(m.fullName); }}
+                    >
+                      <Text style={{ color: assignedPerson === m.fullName ? colors.white : colors.text, fontSize: 14 }}>
+                        {m.fullName}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                  placeholder={t("personNamePlaceholder")}
+                  placeholderTextColor={colors.textSecondary}
+                  value={assignedPerson}
+                  onChangeText={setAssignedPerson}
+                  returnKeyType="next"
+                />
+              )}
           </>
         ) : (
           <>

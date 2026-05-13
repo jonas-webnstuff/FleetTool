@@ -9,7 +9,8 @@
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.webnstuff.fleettool"
+      "bundleIdentifier": "com.webnstuff.fleettool",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.webnstuff.fleettool"

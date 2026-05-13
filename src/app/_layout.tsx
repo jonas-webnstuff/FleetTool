@@ -26,6 +26,23 @@ TextInput.defaultProps = TextInput.defaultProps || {};
 // @ts-expect-error RN internal default style override
 TextInput.defaultProps.style = defaultTextStyle;
 
+function splitFullName(fullName: string): { firstName: string | null; lastName: string | null } {
+  const trimmed = fullName.trim();
+  if (!trimmed) {
+    return { firstName: null, lastName: null };
+  }
+
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: null };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 function AppStack() {
   const { mode, colors } = useTheme();
   const { isLoaded, isSignedIn } = useAuth();
@@ -46,49 +63,43 @@ function AppStack() {
   );
 
   useEffect(() => {
-    const pending = getPendingClerkNameSync();
-
-    if (!pending) {
-      return;
-    }
-
-    if (!isSignedIn) {
-      // Wait until auth settles; clearing here can drop pending sync right after setActive().
-      return;
-    }
-
-    if (!isUserLoaded || !user) {
-      console.log("Waiting for Clerk user before name sync", {
-        isUserLoaded,
-        hasUser: Boolean(user),
-        pendingEmail: pending.email,
-      });
-      return;
-    }
-
-    const primaryEmail = user.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress
-      ?? user.emailAddresses[0]?.emailAddress
-      ?? null;
-
-    if (!primaryEmail || primaryEmail.toLowerCase() !== pending.email.toLowerCase()) {
-      console.log("Skipping pending name sync due to email mismatch", {
-        pendingEmail: pending.email,
-        signedInEmail: primaryEmail,
-      });
-      clearPendingClerkNameSync();
-      return;
-    }
-
     let cancelled = false;
 
     void (async () => {
       try {
-        const { firstName, lastName } = pending.fullName.trim().split(/\s+/).filter(Boolean).length === 1
-          ? { firstName: pending.fullName.trim(), lastName: null }
-          : {
-              firstName: pending.fullName.trim().split(/\s+/).filter(Boolean)[0],
-              lastName: pending.fullName.trim().split(/\s+/).filter(Boolean).slice(1).join(" "),
-            };
+        const pending = await getPendingClerkNameSync();
+        if (!pending || cancelled) {
+          return;
+        }
+
+        if (!isSignedIn) {
+          // Wait until auth settles; do not clear pending yet.
+          return;
+        }
+
+        if (!isUserLoaded || !user) {
+          console.log("Waiting for Clerk user before name sync", {
+            isUserLoaded,
+            hasUser: Boolean(user),
+            pendingEmail: pending.email,
+          });
+          return;
+        }
+
+        const primaryEmail = user.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress
+          ?? user.emailAddresses[0]?.emailAddress
+          ?? null;
+
+        if (!primaryEmail || primaryEmail.toLowerCase() !== pending.email.toLowerCase()) {
+          console.log("Skipping pending name sync due to email mismatch", {
+            pendingEmail: pending.email,
+            signedInEmail: primaryEmail,
+          });
+          await clearPendingClerkNameSync();
+          return;
+        }
+
+        const { firstName, lastName } = splitFullName(pending.fullName);
 
         if (firstName || lastName) {
           await user.update({
@@ -102,7 +113,7 @@ function AppStack() {
         console.warn("Clerk name sync failed", nameError);
       } finally {
         if (!cancelled) {
-          clearPendingClerkNameSync();
+          await clearPendingClerkNameSync();
         }
       }
     })();

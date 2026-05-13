@@ -2,14 +2,18 @@ import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from "re
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@clerk/clerk-expo";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useItems } from "@/context/ItemsContext";
 import ScreenHeader from "@/components/ScreenHeader";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { signOut } = useAuth();
   const { colors, mode, setMode } = useTheme();
   const { t, language, setLanguage } = useLanguage();
+  const { itemMode, vehicleMode, categoryMode, setItemMode, setVehicleMode, setCategoryMode } = useItems();
   const insets = useSafeAreaInsets();
 
   return (
@@ -81,6 +85,54 @@ export default function SettingsScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <TouchableOpacity
+          style={styles.row}
+          activeOpacity={0.7}
+          onPress={async () => {
+            await signOut();
+            router.replace("/sign-in");
+          }}
+        >
+          <Ionicons name="log-out-outline" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Logga ut</Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>Avsluta sessionen på den här enheten</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+
+      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>DATAKÄLLA</Text>
+      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
+        {(
+          [
+            { key: "item", mode: itemMode, setter: setItemMode, label: "Inventarier", icon: "cube-outline" as const },
+            { key: "vehicle", mode: vehicleMode, setter: setVehicleMode, label: "Fordon", icon: "car-sport-outline" as const },
+            { key: "category", mode: categoryMode, setter: setCategoryMode, label: "Kategorier", icon: "pricetags-outline" as const },
+          ] as const
+        ).map(({ key, mode: m, setter, label, icon }, idx, arr) => (
+          <View key={key}>
+            <View style={styles.row}>
+              <Ionicons name={icon} size={20} color={colors.primary} />
+              <Text style={[styles.rowLabel, { color: colors.text, flex: 1 }]}>{label}</Text>
+              <TouchableOpacity
+                style={[styles.modeChip, { borderColor: colors.border, backgroundColor: m === "local" ? colors.primary : colors.cardBackground }]}
+                onPress={() => setter("local")}
+              >
+                <Text style={[styles.modeChipText, { color: m === "local" ? colors.white : colors.textSecondary }]}>Lokalt</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeChip, { borderColor: colors.border, backgroundColor: m === "central" ? colors.primary : colors.cardBackground }]}
+                onPress={() => setter("central")}
+              >
+                <Text style={[styles.modeChipText, { color: m === "central" ? colors.white : colors.textSecondary }]}>Centralt</Text>
+              </TouchableOpacity>
+            </View>
+            {idx < arr.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+          </View>
+        ))}
       </View>
 
       <Text style={[styles.version, { color: colors.textSecondary }]}>{t("version")}</Text>
@@ -135,5 +187,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     marginTop: 16,
+  },
+  sectionHeader: {
+    fontSize: 11,
+    fontFamily: "Roboto_500Medium",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  modeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginLeft: 4,
+  },
+  modeChipText: {
+    fontSize: 12,
+    fontFamily: "Roboto_500Medium",
   },
 });

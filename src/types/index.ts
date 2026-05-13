@@ -5,6 +5,12 @@ export type Vehicle = {
   name: string;
 };
 
+export type Member = {
+  id: string;       // clerk_user_id / membership UUID in Supabase
+  fullName: string;
+  email: string;
+};
+
 export type FleetItem = {
   id: string;
   name: string;
