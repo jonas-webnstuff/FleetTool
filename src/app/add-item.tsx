@@ -25,7 +25,15 @@ import { FleetItem } from "@/types";
 
 export default function AddItemScreen() {
   const router = useRouter();
-  const { addItem, categories, vehicles, members, categoryMode, itemMode } = useItems();
+  const {
+    addItem,
+    categories,
+    vehicles,
+    members,
+    categoryMode,
+    itemMode,
+    canManageLoadout,
+  } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -39,6 +47,24 @@ export default function AddItemScreen() {
   const [assignedVehicle, setAssignedVehicle] = useState(vehicles[0]?.id ?? "");
   const [notes, setNotes] = useState("");
   const [imageUri, setImageUri] = useState<string | undefined>();
+
+  if (!canManageLoadout) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenHeader title={t("addItemTitle")} />
+        <View style={styles.restrictedWrap}>
+          <Ionicons name="lock-closed-outline" size={34} color={colors.textSecondary} />
+          <Text style={[styles.restrictedText, { color: colors.text }]}>{t("restrictedAddItemScreen")}</Text>
+          <TouchableOpacity
+            style={[styles.restrictedBackButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.back()}
+          >
+            <Text style={{ color: colors.white, fontFamily: "Roboto_500Medium" }}>{t("goBack")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   const pickImage = () => {
     const options = [t("takePhoto"), t("chooseFromLibrary"), t("cancel")];
@@ -322,6 +348,23 @@ export default function AddItemScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
+  },
+  restrictedWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  restrictedText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+  restrictedBackButton: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   imagePicker: {
     height: 140,

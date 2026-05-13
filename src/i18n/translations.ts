@@ -94,6 +94,16 @@ export const translations = {
     moveItemTitle: "Move Item",
     selectMoveTarget: 'Select where to move "{name}"',
     newPersonPlaceholder: "New person name...",
+    vehicleLoadoutTitle: "Fill vehicle",
+    loadoutSelectTools: "Select tools to place in {name}",
+    loadoutAssignSelected: "Assign selected",
+    loadoutNoCandidates: "No tools available to add.",
+    selectedCount: "selected",
+    restrictedFeatureTitle: "Restricted action",
+    restrictedAddItemBody: "Only admins and managers can add tools.",
+    restrictedMoveBody: "You can only move tools between vehicles.",
+    restrictedAddItemScreen: "Only admins and managers can add tools in this company.",
+    goBack: "Go back",
 
     // Person / Vehicle screens
     noItemsAssigned: "No items assigned",
@@ -217,6 +227,16 @@ export const translations = {
     moveItemTitle: "Flytta föremål",
     selectMoveTarget: 'Välj vart du vill flytta "{name}"',
     newPersonPlaceholder: "Nytt personnamn...",
+    vehicleLoadoutTitle: "Fyll fordon",
+    loadoutSelectTools: "Välj verktyg som ska läggas i {name}",
+    loadoutAssignSelected: "Tilldela markerade",
+    loadoutNoCandidates: "Inga verktyg att lägga till.",
+    selectedCount: "markerade",
+    restrictedFeatureTitle: "Begränsad åtgärd",
+    restrictedAddItemBody: "Endast admin och arbetsledare kan lägga till verktyg.",
+    restrictedMoveBody: "Du kan bara flytta verktyg mellan fordon.",
+    restrictedAddItemScreen: "Endast admin och arbetsledare kan lägga till verktyg i detta bolag.",
+    goBack: "Gå tillbaka",
 
     // Person / Vehicle screens
     noItemsAssigned: "Inga föremål tilldelade",

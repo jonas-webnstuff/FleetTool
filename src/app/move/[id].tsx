@@ -2,11 +2,11 @@ import { useState } from "react";
 import {
   View,
   Text,
-  FlatList,
   SectionList,
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,7 +18,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 
 export default function MoveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, vehicles, moveItem } = useItems();
+  const { items, vehicles, moveItem, canAssignToPeople, canMoveBetweenVehiclesOnly } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const router = useRouter();
@@ -29,12 +29,22 @@ export default function MoveScreen() {
   const people = [...new Set(items.filter((i) => i.assignedPerson).map((i) => i.assignedPerson!))];
 
   const handleMoveToPerson = (name: string) => {
+    if (!canAssignToPeople) {
+      Alert.alert(t("restrictedFeatureTitle"), t("restrictedMoveBody"));
+      return;
+    }
+
     hapticLight();
     moveItem(id, "person", name, undefined);
     router.back();
   };
 
   const handleMoveToVehicle = (vehicleId: string) => {
+    if (canMoveBetweenVehiclesOnly && item.locationType !== "vehicle") {
+      Alert.alert(t("restrictedFeatureTitle"), t("restrictedMoveBody"));
+      return;
+    }
+
     hapticLight();
     moveItem(id, "vehicle", undefined, vehicleId);
     router.back();
@@ -60,7 +70,7 @@ export default function MoveScreen() {
       <SectionList
         contentContainerStyle={styles.listContent}
         sections={[
-          { title: t("people"), data: people, key: "people" },
+          ...(canAssignToPeople ? [{ title: t("people"), data: people, key: "people" }] : []),
           { title: t("vehicles"), data: vehicles, key: "vehicles" },
         ]}
         keyExtractor={(item) =>
@@ -72,24 +82,29 @@ export default function MoveScreen() {
               {t("selectMoveTarget", { name: item.name })}
             </Text>
 
-            {/* New person input */}
-            <View style={[styles.newPersonRow, { borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.newPersonInput, { color: colors.text }]}
-              placeholder={t("newPersonPlaceholder")}
-                placeholderTextColor={colors.textSecondary}
-                value={newPersonName}
-                onChangeText={setNewPersonName}
-                returnKeyType="done"
-                onSubmitEditing={handleAddNewPerson}
-              />
-              <TouchableOpacity
-                style={[styles.newPersonButton, { backgroundColor: colors.primary }]}
-                onPress={handleAddNewPerson}
-              >
-                <Text style={{ color: colors.white, fontFamily: "Roboto_500Medium" }}>Assign</Text>
-              </TouchableOpacity>
-            </View>
+            {canAssignToPeople ? (
+              <View style={[styles.newPersonRow, { borderColor: colors.border }]}> 
+                <TextInput
+                  style={[styles.newPersonInput, { color: colors.text }]}
+                  placeholder={t("newPersonPlaceholder")}
+                  placeholderTextColor={colors.textSecondary}
+                  value={newPersonName}
+                  onChangeText={setNewPersonName}
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddNewPerson}
+                />
+                <TouchableOpacity
+                  style={[styles.newPersonButton, { backgroundColor: colors.primary }]}
+                  onPress={handleAddNewPerson}
+                >
+                  <Text style={{ color: colors.white, fontFamily: "Roboto_500Medium" }}>Assign</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={[styles.restrictedHint, { color: colors.textSecondary }]}>
+                {t("restrictedMoveBody")}
+              </Text>
+            )}
           </View>
         }
         renderSectionHeader={({ section }) => (
@@ -188,6 +203,10 @@ const styles = StyleSheet.create({
   newPersonButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
+  },
+  restrictedHint: {
+    fontSize: 13,
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 13,
