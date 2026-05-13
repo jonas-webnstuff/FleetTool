@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/clerk-expo";
 import { FleetItem, Member, Vehicle } from "@/types";
 import { useSupabase } from "@/lib/supabase";
 
@@ -19,6 +20,7 @@ const DEFAULT_VEHICLES: Vehicle[] = [
 ];
 
 type CategoryRow = { id: string; name: string };
+type MembershipRole = "owner" | "admin" | "manager" | "field_user";
 
 type ItemsContextType = {
   items: FleetItem[];
@@ -29,6 +31,10 @@ type ItemsContextType = {
   categoryMode: "local" | "central";
   vehicleMode: "local" | "central";
   itemMode: "local" | "central";
+  currentUserRole: MembershipRole | null;
+  canManageLoadout: boolean;
+  canAssignToPeople: boolean;
+  canMoveBetweenVehiclesOnly: boolean;
   isLoaded: boolean;
   addItem: (item: Omit<FleetItem, "id">) => void;
   updateItem: (id: string, updates: Partial<FleetItem>) => void;
@@ -63,6 +69,7 @@ const ItemsContext = createContext<ItemsContextType | null>(null);
 
 export function ItemsProvider({ children }: { children: ReactNode }) {
   const supabase = useSupabase();
+  const { userId } = useAuth();
 
   const [companyId, setCompanyId] = useState<string | null>(null);
   const categoryRowsRef = useRef<CategoryRow[]>([]);
@@ -75,7 +82,13 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const [categoryMode, setCategoryModeState] = useState<"local" | "central">("local");
   const [vehicleMode, setVehicleModeState] = useState<"local" | "central">("local");
   const [itemMode, setItemModeState] = useState<"local" | "central">("local");
+  const [currentUserRole, setCurrentUserRole] = useState<MembershipRole | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const isCentralFieldUser = itemMode === "central" && currentUserRole === "field_user";
+  const canManageLoadout = !isCentralFieldUser;
+  const canAssignToPeople = !isCentralFieldUser;
+  const canMoveBetweenVehiclesOnly = isCentralFieldUser;
 
   // ─── Initial load from AsyncStorage ──────────────────────────────────────
   useEffect(() => {
@@ -207,6 +220,29 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       });
   }, [itemMode, supabase]);
 
+  // ─── Resolve current membership role (central mode) ─────────────────────
+  useEffect(() => {
+    if (itemMode !== "central" || !companyId || !userId) {
+      setCurrentUserRole(null);
+      return;
+    }
+
+    void supabase
+      .from("company_memberships")
+      .select("role")
+      .eq("company_id", companyId)
+      .eq("clerk_user_id", userId)
+      .eq("status", "active")
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!error && data?.role) {
+          setCurrentUserRole(data.role as MembershipRole);
+        } else {
+          setCurrentUserRole(null);
+        }
+      });
+  }, [companyId, itemMode, supabase, userId]);
+
   // ─── Fetch items (central) ────────────────────────────────────────────────
   useEffect(() => {
     if (itemMode !== "central") return;
@@ -258,6 +294,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
   // ─── Items mutations ──────────────────────────────────────────────────────
   const addItem = (item: Omit<FleetItem, "id">) => {
+    if (!canManageLoadout) {
+      console.warn("addItem blocked by role policy");
+      return;
+    }
+
     if (itemMode === "central" && companyId) {
       const vehicleId =
         item.locationType === "vehicle" ? (item.assignedVehicle ?? null) : null;
@@ -294,6 +335,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const updateItem = (id: string, updates: Partial<FleetItem>) => {
+    if (!canManageLoadout) {
+      console.warn("updateItem blocked by role policy");
+      return;
+    }
+
     if (itemMode === "central") {
       const patch: Record<string, unknown> = {};
       if (updates.name !== undefined) patch.name = updates.name;
@@ -320,6 +366,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteItem = (id: string) => {
+    if (!canManageLoadout) {
+      console.warn("deleteItem blocked by role policy");
+      return;
+    }
+
     if (itemMode === "central") {
       void supabase
         .from("items")
@@ -338,6 +389,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const returnItem = (id: string) => {
+    if (!canManageLoadout) {
+      console.warn("returnItem blocked by role policy");
+      return;
+    }
+
     if (itemMode === "central") {
       void supabase
         .from("items")
@@ -381,6 +437,25 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     assignedPerson?: string,
     assignedVehicle?: string
   ) => {
+    if (canMoveBetweenVehiclesOnly) {
+      const currentItem = items.find((i) => i.id === id);
+      const isAllowedVehicleSwap =
+        Boolean(currentItem)
+        && currentItem?.locationType === "vehicle"
+        && locationType === "vehicle"
+        && Boolean(assignedVehicle)
+        && currentItem?.assignedVehicle !== assignedVehicle;
+
+      if (!isAllowedVehicleSwap) {
+        console.warn("moveItem blocked by role policy", {
+          id,
+          from: currentItem?.locationType,
+          to: locationType,
+        });
+        return;
+      }
+    }
+
     if (itemMode === "central") {
       void supabase
         .from("items")
@@ -513,6 +588,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         categoryMode,
         vehicleMode,
         itemMode,
+        currentUserRole,
+        canManageLoadout,
+        canAssignToPeople,
+        canMoveBetweenVehiclesOnly,
         isLoaded,
         addItem,
         updateItem,

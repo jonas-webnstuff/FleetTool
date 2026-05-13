@@ -19,7 +19,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, returnedItems, returnItem, vehicles } = useItems();
+  const { items, returnedItems, returnItem, vehicles, canManageLoadout } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -142,14 +142,16 @@ export default function ItemDetailScreen() {
               <Ionicons name="swap-horizontal-outline" size={20} color={colors.white} />
               <Text style={[styles.actionText, { color: colors.white }]}>{t("moveAction")}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.border }]}
-              activeOpacity={0.8}
-              onPress={handleReturn}
-            >
-              <Ionicons name="checkmark-done-outline" size={20} color={colors.text} />
-              <Text style={[styles.actionText, { color: colors.text }]}>{t("markReturnedAction")}</Text>
-            </TouchableOpacity>
+            {canManageLoadout ? (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.border }]}
+                activeOpacity={0.8}
+                onPress={handleReturn}
+              >
+                <Ionicons name="checkmark-done-outline" size={20} color={colors.text} />
+                <Text style={[styles.actionText, { color: colors.text }]}>{t("markReturnedAction")}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
       </Animated.View>

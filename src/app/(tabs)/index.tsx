@@ -13,7 +13,7 @@ import ItemCard from "@/components/ItemCard";
 
 export default function ItemsScreen() {
   const router = useRouter();
-  const { items } = useItems();
+  const { items, canManageLoadout } = useItems();
   const { colors } = useTheme();
   const { searchVisible, query, setQuery } = useSearch();
   const { t } = useLanguage();
@@ -80,16 +80,18 @@ export default function ItemsScreen() {
             <View>
               <View style={styles.titleRow}>
                 <Text style={[styles.screenTitle, { color: colors.text }]}>{t("tabItems")}</Text>
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: colors.primary }]}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    hapticLight();
-                    router.push("/add-item");
-                  }}
-                >
-                  <Ionicons name="add" size={22} color={colors.white} />
-                </TouchableOpacity>
+                  {canManageLoadout ? (
+                    <TouchableOpacity
+                      style={[styles.addButton, { backgroundColor: colors.primary }]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        hapticLight();
+                        router.push("/add-item");
+                      }}
+                    >
+                      <Ionicons name="add" size={22} color={colors.white} />
+                    </TouchableOpacity>
+                  ) : null}
               </View>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
                 {query.trim()
