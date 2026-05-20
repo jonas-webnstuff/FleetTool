@@ -108,7 +108,9 @@ export default function LocationsScreen() {
           keyExtractor={(item) => ("id" in item ? item.id : item.name)}
           ListHeaderComponent={
             <View>
-              <Text style={[styles.screenTitle, { color: colors.text }]}>{t("locationsTitle")}</Text>
+              <View style={styles.titleRow}>
+                <Text style={[styles.screenTitle, { color: colors.text }]}>{t("locationsTitle")}</Text>
+              </View>
               {vehicleMode === "central" && (
                 <TouchableOpacity onPress={() => router.push("/vehicles")} activeOpacity={0.8}>
                   <Text style={[styles.centralHint, { color: colors.textSecondary }]}>{t("vehiclesManagedCentrallyHint")}</Text>
@@ -295,11 +297,17 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
   screenTitle: {
     fontSize: 26,
     fontWeight: "600",
-    marginTop: 12,
-    marginBottom: 8,
   },
   centralHint: {
     fontSize: 12,

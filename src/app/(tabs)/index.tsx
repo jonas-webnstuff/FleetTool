@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,11 +13,12 @@ import ItemCard from "@/components/ItemCard";
 
 export default function ItemsScreen() {
   const router = useRouter();
-  const { items, canManageLoadout } = useItems();
+  const { items, vehicles, moveItem, canManageLoadout } = useItems();
   const { colors } = useTheme();
   const { searchVisible, query, setQuery } = useSearch();
   const { t } = useLanguage();
   const slideStyle = useTabSlide(0);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const searchAnim = useSharedValue(0);
 
@@ -46,6 +47,19 @@ export default function ItemsScreen() {
         i.category.toLowerCase().includes(q)
     );
   }, [items, query]);
+
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedItemId) ?? null,
+    [items, selectedItemId]
+  );
+
+  const handleMoveSelectedToVehicle = (vehicleId: string) => {
+    if (!selectedItem) return;
+    if (selectedItem.assignedVehicle === vehicleId && selectedItem.locationType === "vehicle") return;
+
+    hapticLight();
+    moveItem(selectedItem.id, "vehicle", undefined, vehicleId);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -109,7 +123,54 @@ export default function ItemsScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item }) => <ItemCard item={item} />}
+          ListFooterComponent={
+            <View style={styles.footerSection}>
+              <View style={[styles.separator, { backgroundColor: colors.border }]} />
+              <Text style={[styles.vehiclesHeading, { color: colors.textSecondary }]}>{t("vehicles")}</Text>
+              <Text style={[styles.selectedHint, { color: colors.textSecondary }]}> 
+                {selectedItem
+                  ? t("toolsSelectedHint", { name: selectedItem.name })
+                  : t("toolsChooseItemHint")}
+              </Text>
+              <View style={styles.vehicleList}>
+                {vehicles.map((vehicle) => {
+                  const isActive = selectedItem?.assignedVehicle === vehicle.id && selectedItem?.locationType === "vehicle";
+                  return (
+                    <TouchableOpacity
+                      key={`tool-target-${vehicle.id}`}
+                      style={[
+                        styles.vehicleTarget,
+                        {
+                          backgroundColor: isActive ? colors.primary : colors.cardBackground,
+                          borderColor: isActive ? colors.primary : colors.border,
+                        },
+                      ]}
+                      activeOpacity={0.85}
+                      disabled={!selectedItem}
+                      onPress={() => handleMoveSelectedToVehicle(vehicle.id)}
+                    >
+                      <Ionicons
+                        name="car"
+                        size={16}
+                        color={isActive ? colors.white : colors.primary}
+                      />
+                      <Text style={[styles.vehicleTargetText, { color: isActive ? colors.white : colors.text }]}> 
+                        {vehicle.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <ItemCard
+              item={item}
+              onPress={(pressedItem) => setSelectedItemId(pressedItem.id)}
+              showQuickMoveButton={false}
+              showChevron={false}
+            />
+          )}
         />
       </Animated.View>
     </View>
@@ -170,5 +231,39 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
+  },
+  footerSection: {
+    marginTop: 6,
+    paddingBottom: 16,
+  },
+  separator: {
+    height: 1,
+    marginBottom: 12,
+  },
+  vehiclesHeading: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 6,
+  },
+  selectedHint: {
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  vehicleList: {
+    gap: 8,
+  },
+  vehicleTarget: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  vehicleTargetText: {
+    fontSize: 15,
+    fontFamily: "Roboto_500Medium",
   },
 });

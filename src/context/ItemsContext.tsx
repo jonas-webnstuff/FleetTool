@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuth } from "@clerk/clerk-expo";
-import { FleetItem, Member, Vehicle } from "@/types";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { ActivityEvent, FleetItem, Member, Vehicle } from "@/types";
 import { useSupabase } from "@/lib/supabase";
+import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
 
 const ITEMS_KEY = "fleettool_items";
 const RETURNED_KEY = "fleettool_returned";
@@ -11,6 +12,7 @@ const CATEGORIES_KEY = "fleettool_categories";
 const CATEGORY_MODE_KEY = "fleettool_category_mode";
 const VEHICLE_MODE_KEY = "fleettool_vehicle_mode";
 const ITEM_MODE_KEY = "fleettool_item_mode";
+const ACTIVITY_LOG_KEY = "fleettool_activity_log";
 
 const DEFAULT_CATEGORIES = ["Tools", "Safety", "Electronics", "Measuring", "Power", "Other"];
 
@@ -26,6 +28,7 @@ type ItemsContextType = {
   items: FleetItem[];
   returnedItems: FleetItem[];
   vehicles: Vehicle[];
+  activityLog: ActivityEvent[];
   categories: string[];
   members: Member[];
   categoryMode: "local" | "central";
@@ -70,14 +73,17 @@ const ItemsContext = createContext<ItemsContextType | null>(null);
 
 export function ItemsProvider({ children }: { children: ReactNode }) {
   const supabase = useSupabase();
-  const { userId } = useAuth();
+  const { userId, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { user, isLoaded: isUserLoaded } = useUser();
 
   const [companyId, setCompanyId] = useState<string | null>(null);
   const categoryRowsRef = useRef<CategoryRow[]>([]);
+  const membersRef = useRef<Member[]>([]);
 
   const [items, setItems] = useState<FleetItem[]>([]);
   const [returnedItems, setReturnedItems] = useState<FleetItem[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>(DEFAULT_VEHICLES);
+  const [activityLog, setActivityLog] = useState<ActivityEvent[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [members, setMembers] = useState<Member[]>([]);
   const [categoryMode, setCategoryModeState] = useState<"local" | "central">("local");
@@ -85,6 +91,13 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const [itemMode, setItemModeState] = useState<"local" | "central">("local");
   const [currentUserRole, setCurrentUserRole] = useState<MembershipRole | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const itemsRef = useRef<FleetItem[]>([]);
+  const vehiclesRef = useRef<Vehicle[]>([]);
+  const lastItemsCompanyIdRef = useRef<string | null>(null);
+  const lastVehiclesCompanyIdRef = useRef<string | null>(null);
+  const emptyItemsStreakRef = useRef(0);
+  const emptyVehiclesStreakRef = useRef(0);
 
   const isCentralFieldUser = itemMode === "central" && currentUserRole === "field_user";
   const canManageLoadout = !isCentralFieldUser;
@@ -98,6 +111,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         storedItems,
         storedReturned,
         storedVehicles,
+        storedActivity,
         storedCategories,
         storedCategoryMode,
         storedVehicleMode,
@@ -106,6 +120,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem(ITEMS_KEY),
         AsyncStorage.getItem(RETURNED_KEY),
         AsyncStorage.getItem(VEHICLES_KEY),
+        AsyncStorage.getItem(ACTIVITY_LOG_KEY),
         AsyncStorage.getItem(CATEGORIES_KEY),
         AsyncStorage.getItem(CATEGORY_MODE_KEY),
         AsyncStorage.getItem(VEHICLE_MODE_KEY),
@@ -115,6 +130,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       setItems(safeParseJson<FleetItem[]>(storedItems, []));
       setReturnedItems(safeParseJson<FleetItem[]>(storedReturned, []));
       setVehicles(safeParseJson<Vehicle[]>(storedVehicles, DEFAULT_VEHICLES));
+      setActivityLog(safeParseJson<ActivityEvent[]>(storedActivity, []));
       setCategories(safeParseJson<string[]>(storedCategories, DEFAULT_CATEGORIES));
       setCategoryModeState(storedCategoryMode === "central" ? "central" : "local");
       setVehicleModeState(storedVehicleMode === "central" ? "central" : "local");
@@ -146,6 +162,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   }, [items, isLoaded, itemMode]);
 
   useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
     if (!isLoaded) return;
     void AsyncStorage.setItem(RETURNED_KEY, JSON.stringify(returnedItems));
   }, [returnedItems, isLoaded]);
@@ -156,70 +176,195 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   }, [vehicles, isLoaded, vehicleMode]);
 
   useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
+
+  useEffect(() => {
     if (!isLoaded || categoryMode === "central") return;
     void AsyncStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
   }, [categories, isLoaded, categoryMode]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    void AsyncStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(activityLog));
+  }, [activityLog, isLoaded]);
+
+  function appendActivity(event: Omit<ActivityEvent, "id" | "createdAt">) {
+    const next: ActivityEvent = {
+      ...event,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setActivityLog((prev) => [next, ...prev].slice(0, 400));
+  }
 
   // ─── Fetch company UUID ───────────────────────────────────────────────────
   useEffect(() => {
     const needsCentral =
       categoryMode === "central" || vehicleMode === "central" || itemMode === "central";
-    if (!needsCentral || companyId) return;
-    void supabase.rpc("current_company_id").then(({ data, error }) => {
-      if (!error && data) setCompanyId(data as string);
-    });
-  }, [categoryMode, vehicleMode, itemMode, companyId, supabase]);
+
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!needsCentral) {
+      setCompanyId(null);
+      return;
+    }
+
+    // Avoid clearing company while auth is still hydrating to prevent UI flicker.
+    if (!isAuthLoaded || !isUserLoaded) {
+      return;
+    }
+
+    if (!isSignedIn || !userId) {
+      setCompanyId(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const primaryEmail = user?.primaryEmailAddress?.emailAddress
+          ?? user?.emailAddresses?.[0]?.emailAddress
+          ?? null;
+        const pending = await getPendingMembershipLink();
+        const rawFullName = user?.fullName ?? `${user?.firstName ?? ""} ${user?.lastName ?? ""}`;
+        const trimmedFullName = rawFullName.trim();
+
+        // Run the full auto-link flow so central mode is usable immediately after sign-in.
+        await supabase.rpc("sync_current_membership");
+        await supabase.rpc("claim_current_membership", {
+          p_clerk_user_id: userId,
+          p_email: primaryEmail,
+          p_pending_email: pending?.email ?? null,
+          p_full_name: trimmedFullName || null,
+        });
+        await supabase.rpc("sync_current_membership");
+
+        const { data, error } = await supabase.rpc("current_company_id");
+        if (cancelled) return;
+
+        if (!error && data) {
+          setCompanyId(String(data));
+          if (pending) {
+            await clearPendingMembershipLink();
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("company sync effect failed", error);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    categoryMode,
+    vehicleMode,
+    itemMode,
+    isAuthLoaded,
+    isLoaded,
+    isSignedIn,
+    isUserLoaded,
+    supabase,
+    user,
+    userId,
+  ]);
 
   // ─── Fetch vehicles (central) ─────────────────────────────────────────────
   useEffect(() => {
-    if (vehicleMode !== "central") return;
+    if (vehicleMode !== "central" || !companyId) return;
+    let cancelled = false;
+
     void supabase
       .from("vehicles")
       .select("id, name")
+      .eq("company_id", companyId)
       .eq("is_active", true)
       .order("name")
       .then(({ data, error }) => {
-        if (!error && data)
-          setVehicles(data.map((v) => ({ id: v.id as string, name: v.name as string })));
+        if (cancelled) return;
+        if (!error && data) {
+          const mapped = data.map((v) => ({ id: v.id as string, name: v.name as string }));
+          const sameCompany = lastVehiclesCompanyIdRef.current === companyId;
+
+          if (mapped.length === 0 && sameCompany && vehiclesRef.current.length > 0) {
+            emptyVehiclesStreakRef.current += 1;
+            if (emptyVehiclesStreakRef.current < 2) {
+              return;
+            }
+          } else {
+            emptyVehiclesStreakRef.current = 0;
+          }
+
+          lastVehiclesCompanyIdRef.current = companyId;
+          setVehicles(mapped);
+        }
       });
-  }, [vehicleMode, supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicleMode, companyId, supabase]);
 
   // ─── Fetch categories (central) ───────────────────────────────────────────
   useEffect(() => {
-    if (categoryMode !== "central") return;
+    if (categoryMode !== "central" || !companyId) return;
+    let cancelled = false;
+
     void supabase
       .from("categories")
       .select("id, name")
+      .eq("company_id", companyId)
       .eq("is_active", true)
       .order("sort_order")
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (!error && data) {
           const rows = data as CategoryRow[];
           categoryRowsRef.current = rows;
           setCategories(rows.map((c) => c.name));
         }
       });
-  }, [categoryMode, supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryMode, companyId, supabase]);
 
   // ─── Fetch members (central item mode) ───────────────────────────────────
   useEffect(() => {
-    if (itemMode !== "central") return;
+    if (itemMode !== "central" || !companyId) return;
+    let cancelled = false;
+
     void supabase
       .from("company_memberships")
       .select("id, full_name, email")
+      .eq("company_id", companyId)
       .eq("status", "active")
       .order("full_name")
       .then(({ data, error }) => {
-        if (!error && data)
-          setMembers(
-            data.map((m) => ({
-              id: m.id as string,
-              fullName: (m.full_name as string | null) ?? (m.email as string),
-              email: m.email as string,
-            }))
-          );
+        if (cancelled) return;
+        if (!error && data) {
+          const mapped = data.map((m) => ({
+            id: m.id as string,
+            fullName: (m.full_name as string | null) ?? (m.email as string),
+            email: m.email as string,
+          }));
+          membersRef.current = mapped;
+          setMembers(mapped);
+        }
       });
-  }, [itemMode, supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itemMode, companyId, supabase]);
 
   // ─── Resolve current membership role (central mode) ─────────────────────
   useEffect(() => {
@@ -227,6 +372,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       setCurrentUserRole(null);
       return;
     }
+
+    let cancelled = false;
 
     void supabase
       .from("company_memberships")
@@ -236,52 +383,82 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       .eq("status", "active")
       .maybeSingle()
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (!error && data?.role) {
           setCurrentUserRole(data.role as MembershipRole);
         } else {
           setCurrentUserRole(null);
         }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [companyId, itemMode, supabase, userId]);
 
   // ─── Fetch items (central) ────────────────────────────────────────────────
   useEffect(() => {
-    if (itemMode !== "central") return;
+    if (itemMode !== "central" || !companyId) return;
+    let cancelled = false;
+
+    const categoryNameById = new Map(categoryRowsRef.current.map((row) => [row.id, row.name]));
+    const memberLabelById = new Map(
+      membersRef.current.map((member) => [member.id, member.fullName || member.email])
+    );
+
     void supabase
       .from("items")
       .select(
-        "id, name, notes, image_url, created_at, assignment_type, status, " +
-          "categories(name), vehicles(id), company_memberships(full_name, email)"
+        "id, name, notes, image_url, created_at, assignment_type, status, vehicle_id, assigned_membership_id, category_id"
       )
-      .neq("status", "retired")
+      .eq("company_id", companyId)
+      .or("status.is.null,status.neq.retired")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (!error && data) {
-          setItems(
-            data.map((row) => {
-              const cat = row.categories as { name: string } | null;
-              const veh = row.vehicles as { id: string } | null;
-              const mem = row.company_memberships as {
-                full_name: string | null;
-                email: string;
-              } | null;
-              return {
-                id: row.id as string,
-                name: row.name as string,
-                category: cat?.name ?? "",
-                locationType:
-                  (row.assignment_type as string) === "vehicle" ? "vehicle" : "person",
-                assignedVehicle: veh?.id,
-                assignedPerson: mem?.full_name ?? mem?.email,
-                notes: (row.notes as string | null) ?? undefined,
-                image: (row.image_url as string | null) ?? undefined,
-                addedDate: ((row.created_at as string) ?? "").split("T")[0],
-              } satisfies FleetItem;
-            })
-          );
+        if (cancelled) return;
+        if (error || !data) {
+          return;
         }
+
+        const mapped = data.map((row) => {
+            const assignmentType = (row.assignment_type as string | null) ?? "unassigned";
+            const locationType = assignmentType === "vehicle" ? "vehicle" : "person";
+
+            return {
+              id: row.id as string,
+              name: (row.name as string) ?? "",
+              category: categoryNameById.get(String(row.category_id ?? "")) ?? "",
+              locationType,
+              assignedVehicle: locationType === "vehicle" ? ((row.vehicle_id as string | null) ?? undefined) : undefined,
+              assignedPerson:
+                locationType === "person"
+                  ? memberLabelById.get(String(row.assigned_membership_id ?? ""))
+                  : undefined,
+              notes: (row.notes as string | null) ?? undefined,
+              image: (row.image_url as string | null) ?? undefined,
+              addedDate: ((row.created_at as string) ?? "").split("T")[0],
+            } satisfies FleetItem;
+          });
+
+        const sameCompany = lastItemsCompanyIdRef.current === companyId;
+
+        if (mapped.length === 0 && sameCompany && itemsRef.current.length > 0) {
+          emptyItemsStreakRef.current += 1;
+          if (emptyItemsStreakRef.current < 2) {
+            return;
+          }
+        } else {
+          emptyItemsStreakRef.current = 0;
+        }
+
+        lastItemsCompanyIdRef.current = companyId;
+        setItems(mapped);
       });
-  }, [itemMode, supabase]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itemMode, companyId, supabase]);
 
   // ─── Lookup helpers ───────────────────────────────────────────────────────
   function getCategoryId(name: string): string | null {
@@ -291,6 +468,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   function getMembershipId(personName: string | undefined): string | null {
     if (!personName) return null;
     return members.find((m) => m.fullName === personName || m.email === personName)?.id ?? null;
+  }
+
+  function getVehicleNameById(vehicleId: string | null | undefined): string {
+    if (!vehicleId) return "-";
+    return vehicles.find((vehicle) => vehicle.id === vehicleId)?.name ?? vehicleId;
   }
 
   // ─── Items mutations ──────────────────────────────────────────────────────
@@ -320,6 +502,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .single()
         .then(({ data, error }) => {
           if (!error && data) {
+            appendActivity({
+              action: "item_added",
+              itemName: item.name,
+            });
             setItems((prev) => [
               {
                 ...item,
@@ -331,6 +517,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           }
         });
     } else {
+      appendActivity({
+        action: "item_added",
+        itemName: item.name,
+      });
       setItems((prev) => [{ ...item, id: Date.now().toString() }, ...prev]);
     }
   };
@@ -358,10 +548,19 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .update(patch)
         .eq("id", id)
         .then(({ error }) => {
-          if (!error)
+          if (!error) {
+            appendActivity({
+              action: "item_updated",
+              itemName: items.find((item) => item.id === id)?.name,
+            });
             setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+          }
         });
     } else {
+      appendActivity({
+        action: "item_updated",
+        itemName: items.find((item) => item.id === id)?.name,
+      });
       setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
     }
   };
@@ -379,11 +578,19 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .eq("id", id)
         .then(({ error }) => {
           if (!error) {
+            appendActivity({
+              action: "item_deleted",
+              itemName: items.find((item) => item.id === id)?.name,
+            });
             setItems((prev) => prev.filter((i) => i.id !== id));
             setReturnedItems((prev) => prev.filter((i) => i.id !== id));
           }
         });
     } else {
+      appendActivity({
+        action: "item_deleted",
+        itemName: items.find((item) => item.id === id)?.name,
+      });
       setItems((prev) => prev.filter((i) => i.id !== id));
       setReturnedItems((prev) => prev.filter((i) => i.id !== id));
     }
@@ -407,6 +614,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .eq("id", id)
         .then(({ error }) => {
           if (!error) {
+            const itemToReturn = items.find((item) => item.id === id);
+            appendActivity({
+              action: "item_returned",
+              itemName: itemToReturn?.name,
+            });
             setItems((prev) => {
               const item = prev.find((i) => i.id === id);
               if (item) {
@@ -420,6 +632,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           }
         });
     } else {
+      appendActivity({
+        action: "item_returned",
+        itemName: items.find((item) => item.id === id)?.name,
+      });
       setItems((prev) => {
         const item = prev.find((i) => i.id === id);
         if (!item) return prev;
@@ -458,6 +674,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     }
 
     if (itemMode === "central") {
+      const currentItem = items.find((item) => item.id === id);
       void supabase
         .from("items")
         .update({
@@ -469,14 +686,40 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         })
         .eq("id", id)
         .then(({ error }) => {
-          if (!error)
+          if (!error) {
+            appendActivity({
+              action: "item_moved",
+              itemName: currentItem?.name,
+              fromName:
+                currentItem?.locationType === "vehicle"
+                  ? getVehicleNameById(currentItem.assignedVehicle)
+                  : (currentItem?.assignedPerson ?? "-"),
+              toName:
+                locationType === "vehicle"
+                  ? getVehicleNameById(assignedVehicle)
+                  : (assignedPerson ?? "-"),
+            });
             setItems((prev) =>
               prev.map((i) =>
                 i.id === id ? { ...i, locationType, assignedPerson, assignedVehicle } : i
               )
             );
+          }
         });
     } else {
+      const currentItem = items.find((item) => item.id === id);
+      appendActivity({
+        action: "item_moved",
+        itemName: currentItem?.name,
+        fromName:
+          currentItem?.locationType === "vehicle"
+            ? getVehicleNameById(currentItem.assignedVehicle)
+            : (currentItem?.assignedPerson ?? "-"),
+        toName:
+          locationType === "vehicle"
+            ? getVehicleNameById(assignedVehicle)
+            : (assignedPerson ?? "-"),
+      });
       setItems((prev) =>
         prev.map((i) =>
           i.id === id ? { ...i, locationType, assignedPerson, assignedVehicle } : i
@@ -505,6 +748,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .in("id", itemIds)
         .then(({ error }) => {
           if (!error) {
+            appendActivity({
+              action: "items_assigned_vehicle",
+              vehicleName: getVehicleNameById(vehicleId),
+              count: itemIds.length,
+            });
             setItems((prev) =>
               prev.map((i) =>
                 itemIds.includes(i.id)
@@ -515,6 +763,11 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           }
         });
     } else {
+      appendActivity({
+        action: "items_assigned_vehicle",
+        vehicleName: getVehicleNameById(vehicleId),
+        count: itemIds.length,
+      });
       setItems((prev) =>
         prev.map((i) =>
           itemIds.includes(i.id)
@@ -534,13 +787,16 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .select("id, name")
         .single()
         .then(({ data, error }) => {
-          if (!error && data)
+          if (!error && data) {
+            appendActivity({ action: "vehicle_added", vehicleName: data.name as string });
             setVehicles((prev) => [
               ...prev,
               { id: data.id as string, name: data.name as string },
             ]);
+          }
         });
     } else {
+      appendActivity({ action: "vehicle_added", vehicleName: name });
       setVehicles((prev) => [...prev, { id: Date.now().toString(), name }]);
     }
   };
@@ -552,10 +808,19 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .update({ name })
         .eq("id", id)
         .then(({ error }) => {
-          if (!error)
+          if (!error) {
+            appendActivity({
+              action: "vehicle_updated",
+              vehicleName: name,
+            });
             setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, name } : v)));
+          }
         });
     } else {
+      appendActivity({
+        action: "vehicle_updated",
+        vehicleName: name,
+      });
       setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, name } : v)));
     }
   };
@@ -567,9 +832,19 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .update({ is_active: false })
         .eq("id", id)
         .then(({ error }) => {
-          if (!error) setVehicles((prev) => prev.filter((v) => v.id !== id));
+          if (!error) {
+            appendActivity({
+              action: "vehicle_removed",
+              vehicleName: getVehicleNameById(id),
+            });
+            setVehicles((prev) => prev.filter((v) => v.id !== id));
+          }
         });
     } else {
+      appendActivity({
+        action: "vehicle_removed",
+        vehicleName: getVehicleNameById(id),
+      });
       setVehicles((prev) => prev.filter((v) => v.id !== id));
     }
   };
@@ -584,6 +859,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .single()
         .then(({ data, error }) => {
           if (!error && data) {
+            appendActivity({ action: "category_added", itemName: data.name as string });
             categoryRowsRef.current = [
               ...categoryRowsRef.current,
               { id: data.id as string, name: data.name as string },
@@ -592,6 +868,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           }
         });
     } else {
+      appendActivity({ action: "category_added", itemName: name });
       setCategories((prev) => [...prev, name]);
     }
   };
@@ -604,19 +881,30 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .eq("name", name)
         .then(({ error }) => {
           if (!error) {
+            appendActivity({ action: "category_removed", itemName: name });
             categoryRowsRef.current = categoryRowsRef.current.filter((r) => r.name !== name);
             setCategories((prev) => prev.filter((c) => c !== name));
           }
         });
     } else {
+      appendActivity({ action: "category_removed", itemName: name });
       setCategories((prev) => prev.filter((c) => c !== name));
     }
   };
 
   // ─── Mode setters ─────────────────────────────────────────────────────────
-  const setCategoryMode = (mode: "local" | "central") => setCategoryModeState(mode);
-  const setVehicleMode = (mode: "local" | "central") => setVehicleModeState(mode);
-  const setItemMode = (mode: "local" | "central") => setItemModeState(mode);
+  const setCategoryMode = (mode: "local" | "central") => {
+    appendActivity({ action: "mode_changed", modeTarget: "categories", modeValue: mode });
+    setCategoryModeState(mode);
+  };
+  const setVehicleMode = (mode: "local" | "central") => {
+    appendActivity({ action: "mode_changed", modeTarget: "vehicles", modeValue: mode });
+    setVehicleModeState(mode);
+  };
+  const setItemMode = (mode: "local" | "central") => {
+    appendActivity({ action: "mode_changed", modeTarget: "items", modeValue: mode });
+    setItemModeState(mode);
+  };
 
   return (
     <ItemsContext.Provider
@@ -624,6 +912,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         items,
         returnedItems,
         vehicles,
+        activityLog,
         categories,
         members,
         categoryMode,

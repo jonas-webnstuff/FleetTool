@@ -9,7 +9,19 @@ import { categoryIcons } from "@/constants/categoryIcons";
 import { hapticLight } from "@/hooks/useHaptic";
 import { FleetItem } from "@/types";
 
-export default function ItemCard({ item }: { item: FleetItem }) {
+type ItemCardProps = {
+  item: FleetItem;
+  onPress?: (item: FleetItem) => void;
+  showQuickMoveButton?: boolean;
+  showChevron?: boolean;
+};
+
+export default function ItemCard({
+  item,
+  onPress,
+  showQuickMoveButton = true,
+  showChevron = true,
+}: ItemCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
   const { deleteItem, vehicles } = useItems();
@@ -61,7 +73,11 @@ export default function ItemCard({ item }: { item: FleetItem }) {
         activeOpacity={0.7}
         onPress={() => {
           hapticLight();
-          router.push(`/item/${item.id}`);
+          if (onPress) {
+            onPress(item);
+            return;
+          }
+          router.push(`/move/${item.id}`);
         }}
       >
         <View style={[styles.iconWrap, { backgroundColor: colors.badgeBg }]}>
@@ -81,7 +97,22 @@ export default function ItemCard({ item }: { item: FleetItem }) {
           </View>
           <Text style={[styles.category, { color: colors.textSecondary }]}>{item.category}</Text>
         </View>
-        <Text style={[styles.chevron, { color: colors.border }]}>›</Text>
+        {showQuickMoveButton && item.locationType === "vehicle" && item.assignedVehicle ? (
+          <TouchableOpacity
+            style={[styles.quickMoveButton, { backgroundColor: colors.vehicleBadgeBg }]}
+            activeOpacity={0.8}
+            onPress={() => {
+              hapticLight();
+              router.push({
+                pathname: "/vehicle-transfer",
+                params: { sourceVehicleId: item.assignedVehicle, itemId: item.id },
+              });
+            }}
+          >
+            <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
+        {showChevron ? <Text style={[styles.chevron, { color: colors.border }]}>›</Text> : null}
       </TouchableOpacity>
     </Swipeable>
   );
@@ -146,6 +177,14 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 13,
     marginTop: 4,
+  },
+  quickMoveButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
   },
   chevron: {
     fontSize: 22,

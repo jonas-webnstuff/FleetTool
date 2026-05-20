@@ -4,27 +4,112 @@ import { useTheme } from "@/context/ThemeContext";
 import { useItems } from "@/context/ItemsContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
-import { categoryIcons } from "@/constants/categoryIcons";
 import { Ionicons } from "@expo/vector-icons";
+import { ActivityEvent } from "@/types";
 
 export default function HistoryScreen() {
   const { colors } = useTheme();
-  const { returnedItems } = useItems();
+  const { activityLog } = useItems();
   const { t } = useLanguage();
   const slideStyle = useTabSlide(2);
+
+  const formatEvent = (event: ActivityEvent) => {
+    switch (event.action) {
+      case "item_added":
+        return {
+          title: t("historyItemAdded", { name: event.itemName ?? "-" }),
+          icon: "add-circle-outline",
+        };
+      case "item_updated":
+        return {
+          title: t("historyItemUpdated", { name: event.itemName ?? "-" }),
+          icon: "create-outline",
+        };
+      case "item_deleted":
+        return {
+          title: t("historyItemDeleted", { name: event.itemName ?? "-" }),
+          icon: "trash-outline",
+        };
+      case "item_returned":
+        return {
+          title: t("historyItemReturned", { name: event.itemName ?? "-" }),
+          icon: "checkmark-done-outline",
+        };
+      case "item_moved":
+        return {
+          title: t("historyItemMoved", {
+            name: event.itemName ?? "-",
+            from: event.fromName ?? "-",
+            to: event.toName ?? "-",
+          }),
+          icon: "swap-horizontal-outline",
+        };
+      case "items_assigned_vehicle":
+        return {
+          title: t("historyItemsAssignedVehicle", {
+            count: String(event.count ?? 0),
+            vehicle: event.vehicleName ?? "-",
+          }),
+          icon: "car-outline",
+        };
+      case "vehicle_added":
+        return {
+          title: t("historyVehicleAdded", { name: event.vehicleName ?? "-" }),
+          icon: "car-sport-outline",
+        };
+      case "vehicle_updated":
+        return {
+          title: t("historyVehicleUpdated", { name: event.vehicleName ?? "-" }),
+          icon: "create-outline",
+        };
+      case "vehicle_removed":
+        return {
+          title: t("historyVehicleRemoved", { name: event.vehicleName ?? "-" }),
+          icon: "remove-circle-outline",
+        };
+      case "category_added":
+        return {
+          title: t("historyCategoryAdded", { name: event.itemName ?? "-" }),
+          icon: "pricetag-outline",
+        };
+      case "category_removed":
+        return {
+          title: t("historyCategoryRemoved", { name: event.itemName ?? "-" }),
+          icon: "pricetag-outline",
+        };
+      case "mode_changed":
+        return {
+          title: t("historyModeChanged", {
+            target:
+              event.modeTarget === "items"
+                ? t("tabItems")
+                : event.modeTarget === "vehicles"
+                  ? t("vehicles")
+                  : t("categories"),
+            mode: event.modeValue === "central" ? "Central" : "Local",
+          }),
+          icon: "options-outline",
+        };
+      default:
+        return {
+          title: t("tabHistory"),
+          icon: "time-outline",
+        };
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Animated.View style={[{ flex: 1 }, slideStyle]}>
         <FlatList
-          data={returnedItems}
+          data={activityLog}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <View>
               <Text style={[styles.screenTitle, { color: colors.text }]}>{t("tabHistory")}</Text>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-                {t("returnedItemsHeading")}
+                {t("historyEventsHeading")}
               </Text>
             </View>
           }
@@ -33,27 +118,21 @@ export default function HistoryScreen() {
               <Ionicons name="time-outline" size={48} color={colors.border} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("noHistoryYet")}</Text>
               <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                {t("returnedItemsAppearHere")}
+                {t("historyEventsAppearHere")}
               </Text>
             </View>
           }
           renderItem={({ item }) => {
-            const iconName = categoryIcons[item.category] ?? "cube-outline";
+            const eventUi = formatEvent(item);
+            const time = new Date(item.createdAt).toLocaleString();
             return (
               <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
                 <View style={[styles.iconWrap, { backgroundColor: colors.badgeBg }]}>
-                  <Ionicons name={iconName as any} size={26} color={colors.primary} />
+                  <Ionicons name={eventUi.icon as any} size={24} color={colors.primary} />
                 </View>
                 <View style={styles.info}>
-                  <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                    {item.category}
-                  </Text>
-                  {item.returnedDate && (
-                    <Text style={[styles.date, { color: colors.textSecondary }]}>
-                      {t("returnedPrefix")} {item.returnedDate}
-                    </Text>
-                  )}
+                  <Text style={[styles.name, { color: colors.text }]}>{eventUi.title}</Text>
+                  <Text style={[styles.date, { color: colors.textSecondary }]}>{time}</Text>
                 </View>
               </View>
             );
@@ -118,10 +197,6 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "400",
-  },
-  sub: {
-    fontSize: 13,
-    marginTop: 2,
   },
   date: {
     fontSize: 13,

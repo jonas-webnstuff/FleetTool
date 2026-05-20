@@ -23,3 +23,30 @@ export type FleetItem = {
   addedDate: string;
   returnedDate?: string;
 };
+
+export type ActivityAction =
+  | "item_added"
+  | "item_updated"
+  | "item_deleted"
+  | "item_returned"
+  | "item_moved"
+  | "items_assigned_vehicle"
+  | "vehicle_added"
+  | "vehicle_updated"
+  | "vehicle_removed"
+  | "category_added"
+  | "category_removed"
+  | "mode_changed";
+
+export type ActivityEvent = {
+  id: string;
+  action: ActivityAction;
+  createdAt: string;
+  itemName?: string;
+  vehicleName?: string;
+  fromName?: string;
+  toName?: string;
+  count?: number;
+  modeTarget?: "items" | "vehicles" | "categories";
+  modeValue?: "local" | "central";
+};
