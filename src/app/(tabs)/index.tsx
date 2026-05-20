@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,16 +9,14 @@ import { useSearch } from "@/context/SearchContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
 import { hapticLight } from "@/hooks/useHaptic";
-import ItemCard from "@/components/ItemCard";
 
 export default function ItemsScreen() {
   const router = useRouter();
-  const { items, vehicles, moveItem, canManageLoadout } = useItems();
+  const { items, vehicles, canManageLoadout } = useItems();
   const { colors } = useTheme();
   const { searchVisible, query, setQuery } = useSearch();
   const { t } = useLanguage();
   const slideStyle = useTabSlide(0);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const searchAnim = useSharedValue(0);
 
@@ -48,17 +46,11 @@ export default function ItemsScreen() {
     );
   }, [items, query]);
 
-  const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedItemId) ?? null,
-    [items, selectedItemId]
-  );
-
-  const handleMoveSelectedToVehicle = (vehicleId: string) => {
-    if (!selectedItem) return;
-    if (selectedItem.assignedVehicle === vehicleId && selectedItem.locationType === "vehicle") return;
-
-    hapticLight();
-    moveItem(selectedItem.id, "vehicle", undefined, vehicleId);
+  const locationLabel = (assignedVehicle?: string, assignedPerson?: string) => {
+    if (assignedVehicle) {
+      return vehicles.find((vehicle) => vehicle.id === assignedVehicle)?.name ?? "-";
+    }
+    return assignedPerson ?? "-";
   };
 
   return (
@@ -123,53 +115,28 @@ export default function ItemsScreen() {
               </Text>
             </View>
           }
-          ListFooterComponent={
-            <View style={styles.footerSection}>
-              <View style={[styles.separator, { backgroundColor: colors.border }]} />
-              <Text style={[styles.vehiclesHeading, { color: colors.textSecondary }]}>{t("vehicles")}</Text>
-              <Text style={[styles.selectedHint, { color: colors.textSecondary }]}> 
-                {selectedItem
-                  ? t("toolsSelectedHint", { name: selectedItem.name })
-                  : t("toolsChooseItemHint")}
-              </Text>
-              <View style={styles.vehicleList}>
-                {vehicles.map((vehicle) => {
-                  const isActive = selectedItem?.assignedVehicle === vehicle.id && selectedItem?.locationType === "vehicle";
-                  return (
-                    <TouchableOpacity
-                      key={`tool-target-${vehicle.id}`}
-                      style={[
-                        styles.vehicleTarget,
-                        {
-                          backgroundColor: isActive ? colors.primary : colors.cardBackground,
-                          borderColor: isActive ? colors.primary : colors.border,
-                        },
-                      ]}
-                      activeOpacity={0.85}
-                      disabled={!selectedItem}
-                      onPress={() => handleMoveSelectedToVehicle(vehicle.id)}
-                    >
-                      <Ionicons
-                        name="car"
-                        size={16}
-                        color={isActive ? colors.white : colors.primary}
-                      />
-                      <Text style={[styles.vehicleTargetText, { color: isActive ? colors.white : colors.text }]}> 
-                        {vehicle.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          }
           renderItem={({ item }) => (
-            <ItemCard
-              item={item}
-              onPress={(pressedItem) => setSelectedItemId(pressedItem.id)}
-              showQuickMoveButton={false}
-              showChevron={false}
-            />
+            <TouchableOpacity
+              style={[styles.toolCard, { backgroundColor: colors.cardBackground }]}
+              activeOpacity={0.7}
+              onPress={() => {
+                hapticLight();
+                router.push(`/move/${item.id}`);
+              }}
+            >
+              <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+                <Ionicons name="cube-outline" size={24} color={colors.primary} />
+              </View>
+
+              <View style={styles.toolInfo}>
+                <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
+                <Text style={[styles.toolMeta, { color: colors.textSecondary }]}>
+                  {locationLabel(item.assignedVehicle, item.assignedPerson)}
+                </Text>
+              </View>
+
+              <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
           )}
         />
       </Animated.View>
@@ -232,38 +199,35 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
   },
-  footerSection: {
-    marginTop: 6,
-    paddingBottom: 16,
-  },
-  separator: {
-    height: 1,
-    marginBottom: 12,
-  },
-  vehiclesHeading: {
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-    marginBottom: 6,
-  },
-  selectedHint: {
-    fontSize: 13,
-    marginBottom: 10,
-  },
-  vehicleList: {
-    gap: 8,
-  },
-  vehicleTarget: {
-    minHeight: 46,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+  toolCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  vehicleTargetText: {
-    fontSize: 15,
-    fontFamily: "Roboto_500Medium",
+  toolAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toolInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  toolName: {
+    fontSize: 16,
+    fontWeight: "400",
+  },
+  toolMeta: {
+    fontSize: 13,
+    marginTop: 2,
   },
 });
