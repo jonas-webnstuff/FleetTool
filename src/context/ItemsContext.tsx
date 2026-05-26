@@ -39,6 +39,20 @@ type MembershipRpcRow = {
   company_id: string | null;
   role?: MembershipRole | null;
 };
+type CompanyItemsRpcRow = {
+  id: string;
+  name: string | null;
+  notes: string | null;
+  image_url: string | null;
+  created_at: string | null;
+  assignment_type: string | null;
+  status: string | null;
+  vehicle_id: string | null;
+  assigned_membership_id: string | null;
+  category_name: string | null;
+  assigned_full_name: string | null;
+  assigned_email: string | null;
+};
 
 type ItemsContextType = {
   items: FleetItem[];
@@ -637,53 +651,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       );
     }
 
-    void supabase
-      .from("items")
-      .select(
-        "id, name, notes, image_url, created_at, assignment_type, status, vehicle_id, assigned_membership_id, category_id, company_memberships!items_assigned_membership_id_fkey(id, full_name, email)"
-      )
-      .eq("company_id", companyId)
-      .or("status.is.null,status.neq.retired")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error || !data) {
-          return;
-        }
-
-        const mapped = data.map((row) => {
-            const assignmentType = (row.assignment_type as string | null) ?? "unassigned";
-            const locationType = assignmentType === "vehicle" ? "vehicle" : "person";
-            const assignedMembership = row.company_memberships as {
-              id?: string | null;
-              full_name?: string | null;
-              email?: string | null;
-            } | null;
-            const assignedPersonLabel =
-              assignedMembership?.full_name?.trim()
-              || assignedMembership?.email?.trim()
-              || memberLabelById.get(String(row.assigned_membership_id ?? ""));
-
-            return {
-              id: row.id as string,
-              name: (row.name as string) ?? "",
-              category: categoryNameById.get(String(row.category_id ?? "")) ?? "",
-              locationType,
-              assignedMembershipId:
-                locationType === "person"
-                  ? ((row.assigned_membership_id as string | null) ?? undefined)
-                  : undefined,
-              assignedVehicle: locationType === "vehicle" ? ((row.vehicle_id as string | null) ?? undefined) : undefined,
-              assignedPerson:
-                locationType === "person"
-                  ? assignedPersonLabel
-                  : undefined,
-              notes: (row.notes as string | null) ?? undefined,
-              image: (row.image_url as string | null) ?? undefined,
-              addedDate: ((row.created_at as string) ?? "").split("T")[0],
-            } satisfies FleetItem;
-          });
-
+    void (async () => {
+      const applyMapped = (mapped: FleetItem[]) => {
         const sameCompany = lastItemsCompanyIdRef.current === companyId;
 
         if (mapped.length === 0 && sameCompany && itemsRef.current.length > 0) {
@@ -697,7 +666,98 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
         lastItemsCompanyIdRef.current = companyId;
         setItems(mapped);
-      });
+      };
+
+      const mapItemRow = (row: {
+        id: string;
+        name: string | null;
+        notes: string | null;
+        image_url: string | null;
+        created_at: string | null;
+        assignment_type: string | null;
+        vehicle_id: string | null;
+        assigned_membership_id: string | null;
+        category_id?: string | null;
+        category_name?: string | null;
+        assigned_full_name?: string | null;
+        assigned_email?: string | null;
+        company_memberships?: {
+          full_name?: string | null;
+          email?: string | null;
+        } | null;
+      }): FleetItem => {
+        const assignmentType = row.assignment_type ?? "unassigned";
+        const locationType = assignmentType === "vehicle" ? "vehicle" : "person";
+        const assignedPersonLabel =
+          row.assigned_full_name?.trim()
+          || row.assigned_email?.trim()
+          || row.company_memberships?.full_name?.trim()
+          || row.company_memberships?.email?.trim()
+          || memberLabelById.get(String(row.assigned_membership_id ?? ""));
+
+        return {
+          id: row.id,
+          name: row.name ?? "",
+          category: row.category_name ?? categoryNameById.get(String(row.category_id ?? "")) ?? "",
+          locationType,
+          assignedMembershipId:
+            locationType === "person"
+              ? (row.assigned_membership_id ?? undefined)
+              : undefined,
+          assignedVehicle: locationType === "vehicle" ? (row.vehicle_id ?? undefined) : undefined,
+          assignedPerson:
+            locationType === "person"
+              ? assignedPersonLabel
+              : undefined,
+          notes: row.notes ?? undefined,
+          image: row.image_url ?? undefined,
+          addedDate: (row.created_at ?? "").split("T")[0],
+        };
+      };
+
+      const { data: rpcData, error: rpcError } = await supabase.rpc("get_company_items_with_assignments");
+      if (!cancelled && !rpcError && Array.isArray(rpcData)) {
+        const mapped = (rpcData as CompanyItemsRpcRow[]).map((row) =>
+          mapItemRow({
+            ...row,
+            category_id: null,
+            company_memberships: null,
+          })
+        );
+        applyMapped(mapped);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("items")
+        .select(
+          "id, name, notes, image_url, created_at, assignment_type, status, vehicle_id, assigned_membership_id, category_id, company_memberships!items_assigned_membership_id_fkey(full_name, email)"
+        )
+        .eq("company_id", companyId)
+        .or("status.is.null,status.neq.retired")
+        .order("created_at", { ascending: false });
+
+      if (cancelled || error || !data) {
+        return;
+      }
+
+      const mapped = data.map((row) =>
+        mapItemRow({
+          id: row.id as string,
+          name: (row.name as string | null) ?? null,
+          notes: (row.notes as string | null) ?? null,
+          image_url: (row.image_url as string | null) ?? null,
+          created_at: (row.created_at as string | null) ?? null,
+          assignment_type: (row.assignment_type as string | null) ?? null,
+          vehicle_id: (row.vehicle_id as string | null) ?? null,
+          assigned_membership_id: (row.assigned_membership_id as string | null) ?? null,
+          category_id: (row.category_id as string | null) ?? null,
+          company_memberships: (row.company_memberships as { full_name?: string | null; email?: string | null } | null) ?? null,
+        })
+      );
+
+      applyMapped(mapped);
+    })();
 
     return () => {
       cancelled = true;
@@ -1041,8 +1101,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                       }
                     : i
                 )
-                  setItemsReloadTick((prev) => prev + 1);
               );
+              setItemsReloadTick((prev) => prev + 1);
             } else {
               console.warn("move_item_to_person rpc failed", {
                 id,
@@ -1050,9 +1110,9 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                 assignedPerson,
                 rpcResult: data,
                 message: error?.message,
-                  Alert.alert("Kunde inte flytta verktyget", "Flytten gick inte att spara i databasen. Försök igen.");
-                  setItemsReloadTick((prev) => prev + 1);
               });
+              Alert.alert("Kunde inte flytta verktyget", "Flytten gick inte att spara i databasen. Försök igen.");
+              setItemsReloadTick((prev) => prev + 1);
             }
           });
 
