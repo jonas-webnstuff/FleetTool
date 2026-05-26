@@ -1008,6 +1008,52 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         locationType === "person"
           ? (assignedMembershipId ?? getMembershipId(assignedPerson))
           : null;
+
+      if (locationType === "person" && nextAssignedMembershipId) {
+        void supabase
+          .rpc("move_item_to_person", {
+            p_item_id: id,
+            p_target_membership_id: nextAssignedMembershipId,
+          })
+          .then(({ data, error }) => {
+            if (!error && data === true) {
+              appendActivity({
+                action: "item_moved",
+                itemName: currentItem?.name,
+                fromName:
+                  currentItem?.locationType === "vehicle"
+                    ? getVehicleNameById(currentItem.assignedVehicle)
+                    : (currentItem?.assignedPerson ?? "-"),
+                toName: assignedPerson ?? "-",
+              });
+
+              setItems((prev) =>
+                prev.map((i) =>
+                  i.id === id
+                    ? {
+                        ...i,
+                        locationType,
+                        assignedPerson,
+                        assignedMembershipId: nextAssignedMembershipId,
+                        assignedVehicle: undefined,
+                      }
+                    : i
+                )
+              );
+            } else {
+              console.warn("move_item_to_person rpc failed", {
+                id,
+                assignedMembershipId: nextAssignedMembershipId,
+                assignedPerson,
+                rpcResult: data,
+                message: error?.message,
+              });
+            }
+          });
+
+        return;
+      }
+
       void supabase
         .from("items")
         .update({
@@ -1016,10 +1062,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           assigned_membership_id:
             nextAssignedMembershipId,
           status: "assigned",
-        })
+        }, { count: "exact" })
         .eq("id", id)
-        .then(({ error }) => {
-          if (!error) {
+        .then(({ error, count }) => {
+          if (!error && count === 1) {
             appendActivity({
               action: "item_moved",
               itemName: currentItem?.name,
@@ -1052,6 +1098,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
               locationType,
               assignedPerson,
               assignedMembershipId: nextAssignedMembershipId,
+                  updatedRows: count,
               assignedVehicle,
               message: error.message,
             });

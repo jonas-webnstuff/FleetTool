@@ -409,18 +409,11 @@ export default function ItemsScreen() {
                         router.push(`/person/${encodeURIComponent(person.label)}`);
                       }}
                     >
-                      <View
-                        style={[
-                          styles.quickPersonAvatar,
-                          { backgroundColor: hoveredTargetId === person.id ? "rgba(255,255,255,0.22)" : colors.badgeBg },
-                        ]}
-                      >
-                        <Ionicons
-                          name="person"
-                          size={22}
-                          color={hoveredTargetId === person.id ? colors.white : colors.primary}
-                        />
-                      </View>
+                      <Ionicons
+                        name="person-outline"
+                        size={16}
+                        color={hoveredTargetId === person.id ? colors.white : colors.primary}
+                      />
                       <Text
                         style={[
                           styles.quickPersonText,
@@ -611,28 +604,21 @@ const styles = StyleSheet.create({
   quickPersonChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
     borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 1,
   },
-  quickPersonAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   quickPersonText: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "500",
   },
   selectionHint: {
     marginTop: 10,
