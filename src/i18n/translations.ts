@@ -28,6 +28,8 @@ export const translations = {
     resultSingular: "result",
     resultPlural: "results",
     toolsAssignedToYouHint: "Showing tools assigned to you",
+    unassignedTools: "Unassigned tools",
+    tapUnassignedToAssignYou: "Tap a tool to assign it to yourself.",
 
     // History screen
     returnedItemsHeading: "Returned items",
@@ -204,6 +206,8 @@ export const translations = {
     resultSingular: "resultat",
     resultPlural: "resultat",
     toolsAssignedToYouHint: "Visar verktyg som är tilldelade till dig",
+    unassignedTools: "Olistade verktyg",
+    tapUnassignedToAssignYou: "Tryck på ett verktyg för att tilldela det till dig.",
 
     // History screen
     returnedItemsHeading: "Returnerade föremål",

@@ -264,6 +264,19 @@ export default function ItemsScreen() {
     return result;
   }, [currentMemberName, defaultItemLocationType, items, members]);
 
+  const unassignedTools = useMemo(() => {
+    if (defaultItemLocationType !== "person") {
+      return [] as FleetItem[];
+    }
+
+    return items.filter(
+      (item) =>
+        item.locationType === "person"
+        && !item.assignedMembershipId
+        && !(item.assignedPerson ?? "").trim()
+    );
+  }, [defaultItemLocationType, items]);
+
   useEffect(() => {
     quickPeopleRef.current = quickPeople;
   }, [quickPeople]);
@@ -306,6 +319,16 @@ export default function ItemsScreen() {
     hapticLight();
     moveItemRef.current(item.id, "person", target.label, undefined, target.membershipId);
     setActiveItemId(null);
+  };
+
+  const assignUnassignedToCurrentUser = (itemId: string) => {
+    const item = itemsRef.current.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    const fallbackName = currentMemberName.trim() || "-";
+    moveItemRef.current(item.id, "person", fallbackName, undefined, currentMemberId || undefined);
   };
 
   const handleDragStart = (itemId: string) => {
@@ -450,6 +473,35 @@ export default function ItemsScreen() {
                   <Text style={[styles.selectionHint, { color: colors.textSecondary }]}> 
                     {t("moveItemTitle")}: {filtered.find((i) => i.id === activeItemId)?.name ?? ""}
                   </Text>
+                ) : null}
+
+                {unassignedTools.length > 0 ? (
+                  <View style={styles.unassignedSection}>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
+                    <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("tapUnassignedToAssignYou")}</Text>
+                    <View style={styles.quickPeopleWrap}>
+                      {unassignedTools.map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[
+                            styles.quickPersonChip,
+                            {
+                              backgroundColor: colors.cardBackground,
+                              borderColor: colors.border,
+                            },
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            hapticLight();
+                            assignUnassignedToCurrentUser(item.id);
+                          }}
+                        >
+                          <Ionicons name="cube-outline" size={16} color={colors.primary} />
+                          <Text style={[styles.quickPersonText, { color: colors.text }]}>{item.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
                 ) : null}
               </View>
             ) : null
@@ -635,5 +687,8 @@ const styles = StyleSheet.create({
   selectionHint: {
     marginTop: 10,
     fontSize: 12,
+  },
+  unassignedSection: {
+    marginTop: 12,
   },
 });

@@ -26,10 +26,7 @@ export default function MoveScreen() {
     vehicles,
     members,
     moveItem,
-    canMoveBetweenVehiclesOnly,
     defaultItemLocationType,
-    currentUserRole,
-    currentMemberId,
   } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -118,30 +115,6 @@ export default function MoveScreen() {
 
     const target = targets.find((candidate) => candidate.id === targetId);
     if (!target) return;
-
-    const isRestrictedPersonHandover =
-      currentUserRole === "field_user"
-      && Boolean(currentMemberId)
-      && target.type === "person"
-      && item.locationType === "person"
-      && Boolean(item.assignedMembershipId)
-      && item.assignedMembershipId !== currentMemberId;
-
-    if (isRestrictedPersonHandover) {
-      Alert.alert(t("restrictedFeatureTitle"), t("restrictedMoveBody"));
-      return;
-    }
-
-    const isAllowedVehicleSwap =
-      item.locationType === "vehicle"
-      && target.type === "vehicle"
-      && Boolean(item.assignedVehicle)
-      && item.assignedVehicle !== target.id;
-
-    if (canMoveBetweenVehiclesOnly && !isAllowedVehicleSwap) {
-      Alert.alert(t("restrictedFeatureTitle"), t("restrictedMoveBody"));
-      return;
-    }
 
     hapticLight();
     if (target.type === "vehicle") {

@@ -1045,25 +1045,6 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     assignedVehicle?: string,
     assignedMembershipId?: string
   ) => {
-    if (canMoveBetweenVehiclesOnly) {
-      const currentItem = items.find((i) => i.id === id);
-      const isAllowedVehicleSwap =
-        Boolean(currentItem)
-        && currentItem?.locationType === "vehicle"
-        && locationType === "vehicle"
-        && Boolean(assignedVehicle)
-        && currentItem?.assignedVehicle !== assignedVehicle;
-
-      if (!isAllowedVehicleSwap) {
-        console.warn("moveItem blocked by role policy", {
-          id,
-          from: currentItem?.locationType,
-          to: locationType,
-        });
-        return;
-      }
-    }
-
     if (effectiveItemMode === "central") {
       const currentItem = items.find((item) => item.id === id);
       const nextAssignedMembershipId =
