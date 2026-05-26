@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Alert } from "react-native";
 import { ActivityEvent, FleetItem, Member, Vehicle } from "@/types";
 import { useSupabase } from "@/lib/supabase";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
@@ -111,6 +112,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const [currentUserRole, setCurrentUserRole] = useState<MembershipRole | null>(null);
   const [currentMembership, setCurrentMembership] = useState<MembershipRpcRow | null>(null);
   const [defaultItemLocationType, setDefaultItemLocationType] = useState<"person" | "vehicle">("person");
+  const [itemsReloadTick, setItemsReloadTick] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const itemsRef = useRef<FleetItem[]>([]);
@@ -700,7 +702,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [companyId, currentMembership, effectiveItemMode, supabase, user, userId]);
+  }, [companyId, currentMembership, effectiveItemMode, itemsReloadTick, supabase, user, userId]);
 
   useEffect(() => {
     if (effectiveItemMode !== "central" || members.length === 0) {
@@ -1039,6 +1041,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                       }
                     : i
                 )
+                  setItemsReloadTick((prev) => prev + 1);
               );
             } else {
               console.warn("move_item_to_person rpc failed", {
@@ -1047,6 +1050,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                 assignedPerson,
                 rpcResult: data,
                 message: error?.message,
+                  Alert.alert("Kunde inte flytta verktyget", "Flytten gick inte att spara i databasen. Försök igen.");
+                  setItemsReloadTick((prev) => prev + 1);
               });
             }
           });
@@ -1092,16 +1097,19 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                   : i
               )
             );
+            setItemsReloadTick((prev) => prev + 1);
           } else {
             console.warn("moveItem central update failed", {
               id,
               locationType,
               assignedPerson,
               assignedMembershipId: nextAssignedMembershipId,
-                  updatedRows: count,
+              updatedRows: count,
               assignedVehicle,
-              message: error.message,
+              message: error?.message,
             });
+            Alert.alert("Kunde inte flytta verktyget", "Flytten gick inte att spara i databasen. Försök igen.");
+            setItemsReloadTick((prev) => prev + 1);
           }
         });
     } else {

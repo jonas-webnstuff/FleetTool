@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -29,93 +29,6 @@ type PersonDropTarget = {
   membershipId: string;
 };
 
-function DraggableToolRow({
-  item,
-  colors,
-  isSelected,
-  onPress,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
-  onDragCancel,
-}: {
-  item: FleetItem;
-  colors: {
-    cardBackground: string;
-    badgeBg: string;
-    primary: string;
-    text: string;
-    border: string;
-    textSecondary: string;
-  };
-  isSelected: boolean;
-  onPress: () => void;
-  onDragStart: (itemId: string) => void;
-  onDragMove: (itemId: string, x: number, y: number) => void;
-  onDragEnd: (itemId: string, x: number, y: number) => void;
-  onDragCancel: () => void;
-}) {
-  const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
-      },
-      onPanResponderGrant: () => {
-        onDragStart(item.id);
-      },
-      onPanResponderMove: (_evt, gestureState) => {
-        dragTranslate.setValue({ x: gestureState.dx, y: gestureState.dy });
-        onDragMove(item.id, gestureState.moveX, gestureState.moveY);
-      },
-      onPanResponderRelease: (_evt, gestureState) => {
-        onDragEnd(item.id, gestureState.moveX, gestureState.moveY);
-        Animated.spring(dragTranslate, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          bounciness: 8,
-        }).start();
-      },
-      onPanResponderTerminate: () => {
-        onDragCancel();
-        Animated.spring(dragTranslate, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          bounciness: 8,
-        }).start();
-      },
-    })
-  ).current;
-
-  return (
-    <Animated.View
-      style={[
-        styles.toolCard,
-        {
-          backgroundColor: colors.cardBackground,
-          borderColor: isSelected ? colors.primary : colors.border,
-          borderWidth: isSelected ? 1.5 : 1,
-          transform: dragTranslate.getTranslateTransform(),
-          zIndex: isSelected ? 3 : 1,
-        },
-      ]}
-      {...panResponder.panHandlers}
-    >
-      <TouchableOpacity style={styles.toolTouch} activeOpacity={0.8} onPress={onPress}>
-        <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
-          <Ionicons name="cube-outline" size={24} color={colors.primary} />
-        </View>
-
-        <View style={styles.toolInfo}>
-          <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
 export default function ItemsScreen() {
   const router = useRouter();
   const {
@@ -126,17 +39,27 @@ export default function ItemsScreen() {
     defaultItemLocationType,
     currentMemberId,
     currentMemberName,
+    itemMode,
   } = useItems();
   const { colors } = useTheme();
   const { searchVisible, query, setQuery } = useSearch();
   const { t } = useLanguage();
   const slideStyle = useTabSlide(0);
+
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const zoneLayoutsRef = useRef<Record<string, LayoutRectangle>>({});
   const zoneRefs = useRef<Record<string, RNView | null>>({});
+  const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const activeItemIdRef = useRef<string | null>(null);
+  const quickPeopleRef = useRef<PersonDropTarget[]>([]);
+  const filteredRef = useRef<FleetItem[]>([]);
+  const itemsRef = useRef<FleetItem[]>([]);
+  const tRef = useRef(t);
+  const moveItemRef = useRef(moveItem);
 
   const searchAnim = useSharedValue(0);
 
@@ -160,26 +83,30 @@ export default function ItemsScreen() {
       return items;
     }
 
+    if (itemMode === "central") {
+      if (!currentMemberId) {
+        return items;
+      }
+
+      return items.filter(
+        (item) => item.locationType === "person" && item.assignedMembershipId === currentMemberId
+      );
+    }
+
     const normalizedCurrent = currentMemberName.trim().toLowerCase();
 
     if (!currentMemberId && !normalizedCurrent) {
       return items;
     }
 
-    return items.filter(
-      (item) => {
-        if (item.locationType !== "person") {
-          return false;
-        }
-
-        if (currentMemberId && item.assignedMembershipId) {
-          return item.assignedMembershipId === currentMemberId;
-        }
-
-        return (item.assignedPerson ?? "").trim().toLowerCase() === normalizedCurrent;
+    return items.filter((item) => {
+      if (item.locationType !== "person") {
+        return false;
       }
-    );
-  }, [currentMemberId, currentMemberName, defaultItemLocationType, items]);
+
+      return (item.assignedPerson ?? "").trim().toLowerCase() === normalizedCurrent;
+    });
+  }, [currentMemberId, currentMemberName, defaultItemLocationType, itemMode, items]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return scopedItems;
@@ -255,6 +182,26 @@ export default function ItemsScreen() {
     return result;
   }, [currentMemberName, defaultItemLocationType, items, members]);
 
+  const activeItem = useMemo(
+    () => (activeItemId ? (filtered.find((candidate) => candidate.id === activeItemId) ?? items.find((candidate) => candidate.id === activeItemId)) : undefined),
+    [activeItemId, filtered, items]
+  );
+
+  useEffect(() => {
+    activeItemIdRef.current = activeItemId;
+  }, [activeItemId]);
+
+  useEffect(() => {
+    quickPeopleRef.current = quickPeople;
+  }, [quickPeople]);
+
+  useEffect(() => {
+    filteredRef.current = filtered;
+    itemsRef.current = items;
+    tRef.current = t;
+    moveItemRef.current = moveItem;
+  }, [filtered, items, t, moveItem]);
+
   const refreshDropZones = () => {
     Object.entries(zoneRefs.current).forEach(([targetId, node]) => {
       if (!node) return;
@@ -277,42 +224,66 @@ export default function ItemsScreen() {
   };
 
   const moveItemToPerson = (itemId: string, targetId: string) => {
-    const target = quickPeople.find((candidate) => candidate.id === targetId);
-    const item = filtered.find((candidate) => candidate.id === itemId) ?? items.find((candidate) => candidate.id === itemId);
+    const target = quickPeopleRef.current.find((candidate) => candidate.id === targetId);
+    const item = filteredRef.current.find((candidate) => candidate.id === itemId) ?? itemsRef.current.find((candidate) => candidate.id === itemId);
 
     if (!target || !item) {
       return;
     }
 
     hapticLight();
-    moveItem(item.id, "person", target.label, undefined, target.membershipId);
+    moveItemRef.current(item.id, "person", target.label, undefined, target.membershipId);
     setActiveItemId(null);
   };
 
-  const handleDragStart = (itemId: string) => {
-    setActiveItemId(itemId);
-    setIsDragging(true);
-    refreshDropZones();
-  };
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        return Boolean(activeItemIdRef.current) && (Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4);
+      },
+      onPanResponderGrant: () => {
+        if (!activeItemIdRef.current) return;
+        setIsDragging(true);
+        refreshDropZones();
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        if (!activeItemIdRef.current) return;
+        dragTranslate.setValue({ x: gestureState.dx, y: gestureState.dy });
+        const hovered = getTargetAtPoint(gestureState.moveX, gestureState.moveY);
+        setHoveredTargetId(hovered);
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        const currentActive = activeItemIdRef.current;
+        if (!currentActive) return;
 
-  const handleDragMove = (_itemId: string, x: number, y: number) => {
-    const hovered = getTargetAtPoint(x, y);
-    setHoveredTargetId(hovered);
-  };
+        const matchedTargetId = getTargetAtPoint(gestureState.moveX, gestureState.moveY);
 
-  const handleDragEnd = (itemId: string, x: number, y: number) => {
-    const matchedTargetId = getTargetAtPoint(x, y);
+        setHoveredTargetId(null);
+        setIsDragging(false);
 
-    setHoveredTargetId(null);
-    setIsDragging(false);
+        if (matchedTargetId) {
+          moveItemToPerson(currentActive, matchedTargetId);
+        } else {
+          Alert.alert(tRef.current("moveItemTitle"), tRef.current("moveQuickDropOnPerson"));
+        }
 
-    if (matchedTargetId) {
-      moveItemToPerson(itemId, matchedTargetId);
-      return;
-    }
-
-    Alert.alert(t("moveItemTitle"), t("moveQuickDropOnPerson"));
-  };
+        Animated.spring(dragTranslate, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+          bounciness: 8,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        setHoveredTargetId(null);
+        setIsDragging(false);
+        Animated.spring(dragTranslate, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+          bounciness: 8,
+        }).start();
+      },
+    })
+  ).current;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -348,29 +319,56 @@ export default function ItemsScreen() {
             <View>
               <View style={styles.titleRow}>
                 <Text style={[styles.screenTitle, { color: colors.text }]}>{t("tabItems")}</Text>
-                  {canManageLoadout ? (
-                    <TouchableOpacity
-                      style={[styles.addButton, { backgroundColor: colors.primary }]}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        hapticLight();
-                        router.push("/add-item");
-                      }}
-                    >
-                      <Ionicons name="add" size={22} color={colors.white} />
-                    </TouchableOpacity>
-                  ) : null}
+                {canManageLoadout ? (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: colors.primary }]}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      hapticLight();
+                      router.push("/add-item");
+                    }}
+                  >
+                    <Ionicons name="add" size={22} color={colors.white} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}> 
                 {query.trim()
                   ? `${filtered.length} ${filtered.length !== 1 ? t("resultPlural") : t("resultSingular")}`
                   : `${scopedItems.length} ${scopedItems.length !== 1 ? t("itemPlural") : t("itemSingular")} ${t("tracked")}`}
               </Text>
+
               {defaultItemLocationType === "person" ? (
                 <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("toolsAssignedToYouHint")}</Text>
               ) : null}
               {defaultItemLocationType === "person" ? (
                 <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("moveQuickHintPeople")}</Text>
+              ) : null}
+
+              {defaultItemLocationType === "person" && activeItem ? (
+                <Animated.View
+                  style={[
+                    styles.toolCard,
+                    {
+                      backgroundColor: colors.cardBackground,
+                      borderColor: hoveredTargetId ? colors.primary : colors.border,
+                      borderWidth: 1,
+                      transform: dragTranslate.getTranslateTransform(),
+                    },
+                  ]}
+                  {...panResponder.panHandlers}
+                >
+                  <View style={styles.toolTouch}>
+                    <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+                      <Ionicons name="cube-outline" size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.toolInfo}>
+                      <Text style={[styles.toolName, { color: colors.text }]}>{activeItem.name}</Text>
+                      <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{activeItem.category}</Text>
+                    </View>
+                  </View>
+                </Animated.View>
               ) : null}
             </View>
           }
@@ -436,12 +434,10 @@ export default function ItemsScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="construct-outline" size={48} color={colors.border} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}> 
                 {defaultItemLocationType === "person" ? t("noItemsForCurrentUser") : t("noItemsYet")}
               </Text>
-              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                {t("tapToAdd")}
-              </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>{t("tapToAdd")}</Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -472,29 +468,32 @@ export default function ItemsScreen() {
             }
 
             return (
-              <DraggableToolRow
-                item={item}
-                colors={{
-                  cardBackground: colors.cardBackground,
-                  badgeBg: colors.badgeBg,
-                  primary: colors.primary,
-                  text: colors.text,
-                  border: colors.border,
-                  textSecondary: colors.textSecondary,
-                }}
-                isSelected={activeItemId === item.id}
+              <TouchableOpacity
+                style={[
+                  styles.toolCard,
+                  {
+                    backgroundColor: colors.cardBackground,
+                    borderColor: activeItemId === item.id ? colors.primary : colors.border,
+                    borderWidth: activeItemId === item.id ? 1.5 : 1,
+                  },
+                ]}
+                activeOpacity={0.8}
                 onPress={() => {
                   hapticLight();
                   setActiveItemId((prev) => (prev === item.id ? null : item.id));
                 }}
-                onDragStart={handleDragStart}
-                onDragMove={handleDragMove}
-                onDragEnd={handleDragEnd}
-                onDragCancel={() => {
-                  setHoveredTargetId(null);
-                  setIsDragging(false);
-                }}
-              />
+              >
+                <View style={styles.toolTouch}>
+                  <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+                    <Ionicons name="cube-outline" size={24} color={colors.primary} />
+                  </View>
+
+                  <View style={styles.toolInfo}>
+                    <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
             );
           }}
         />
