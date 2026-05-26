@@ -28,6 +28,8 @@ export default function MoveScreen() {
     moveItem,
     canMoveBetweenVehiclesOnly,
     defaultItemLocationType,
+    currentUserRole,
+    currentMemberId,
   } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -116,6 +118,19 @@ export default function MoveScreen() {
 
     const target = targets.find((candidate) => candidate.id === targetId);
     if (!target) return;
+
+    const isRestrictedPersonHandover =
+      currentUserRole === "field_user"
+      && Boolean(currentMemberId)
+      && target.type === "person"
+      && item.locationType === "person"
+      && Boolean(item.assignedMembershipId)
+      && item.assignedMembershipId !== currentMemberId;
+
+    if (isRestrictedPersonHandover) {
+      Alert.alert(t("restrictedFeatureTitle"), t("restrictedMoveBody"));
+      return;
+    }
 
     const isAllowedVehicleSwap =
       item.locationType === "vehicle"
