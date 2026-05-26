@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   Animated,
   PanResponder,
   LayoutRectangle,
@@ -28,6 +27,93 @@ type PersonDropTarget = {
   label: string;
   membershipId: string;
 };
+
+function DraggableToolRow({
+  item,
+  colors,
+  isActive,
+  onPress,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onDragCancel,
+}: {
+  item: FleetItem;
+  colors: {
+    cardBackground: string;
+    badgeBg: string;
+    primary: string;
+    text: string;
+    border: string;
+    textSecondary: string;
+  };
+  isActive: boolean;
+  onPress: () => void;
+  onDragStart: (itemId: string) => void;
+  onDragMove: (itemId: string, x: number, y: number) => void;
+  onDragEnd: (itemId: string, x: number, y: number) => void;
+  onDragCancel: () => void;
+}) {
+  const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderGrant: () => {
+        onDragStart(item.id);
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        dragTranslate.setValue({ x: gestureState.dx, y: gestureState.dy });
+        onDragMove(item.id, gestureState.moveX, gestureState.moveY);
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        onDragEnd(item.id, gestureState.moveX, gestureState.moveY);
+        Animated.spring(dragTranslate, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+          bounciness: 8,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        onDragCancel();
+        Animated.spring(dragTranslate, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+          bounciness: 8,
+        }).start();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={[
+        styles.toolCard,
+        {
+          backgroundColor: colors.cardBackground,
+          borderColor: isActive ? colors.primary : colors.border,
+          borderWidth: isActive ? 1.5 : 1,
+          transform: dragTranslate.getTranslateTransform(),
+          zIndex: isActive ? 2 : 1,
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <TouchableOpacity style={styles.toolTouch} activeOpacity={0.85} onPress={onPress}>
+        <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+          <Ionicons name="cube-outline" size={24} color={colors.primary} />
+        </View>
+
+        <View style={styles.toolInfo}>
+          <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
+          <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function ItemsScreen() {
   const router = useRouter();
@@ -52,13 +138,9 @@ export default function ItemsScreen() {
 
   const zoneLayoutsRef = useRef<Record<string, LayoutRectangle>>({});
   const zoneRefs = useRef<Record<string, RNView | null>>({});
-  const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-
-  const activeItemIdRef = useRef<string | null>(null);
   const quickPeopleRef = useRef<PersonDropTarget[]>([]);
   const filteredRef = useRef<FleetItem[]>([]);
   const itemsRef = useRef<FleetItem[]>([]);
-  const tRef = useRef(t);
   const moveItemRef = useRef(moveItem);
 
   const searchAnim = useSharedValue(0);
@@ -182,15 +264,6 @@ export default function ItemsScreen() {
     return result;
   }, [currentMemberName, defaultItemLocationType, items, members]);
 
-  const activeItem = useMemo(
-    () => (activeItemId ? (filtered.find((candidate) => candidate.id === activeItemId) ?? items.find((candidate) => candidate.id === activeItemId)) : undefined),
-    [activeItemId, filtered, items]
-  );
-
-  useEffect(() => {
-    activeItemIdRef.current = activeItemId;
-  }, [activeItemId]);
-
   useEffect(() => {
     quickPeopleRef.current = quickPeople;
   }, [quickPeople]);
@@ -198,9 +271,8 @@ export default function ItemsScreen() {
   useEffect(() => {
     filteredRef.current = filtered;
     itemsRef.current = items;
-    tRef.current = t;
     moveItemRef.current = moveItem;
-  }, [filtered, items, t, moveItem]);
+  }, [filtered, items, moveItem]);
 
   const refreshDropZones = () => {
     Object.entries(zoneRefs.current).forEach(([targetId, node]) => {
@@ -236,54 +308,29 @@ export default function ItemsScreen() {
     setActiveItemId(null);
   };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, gestureState) => {
-        return Boolean(activeItemIdRef.current) && (Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4);
-      },
-      onPanResponderGrant: () => {
-        if (!activeItemIdRef.current) return;
-        setIsDragging(true);
-        refreshDropZones();
-      },
-      onPanResponderMove: (_evt, gestureState) => {
-        if (!activeItemIdRef.current) return;
-        dragTranslate.setValue({ x: gestureState.dx, y: gestureState.dy });
-        const hovered = getTargetAtPoint(gestureState.moveX, gestureState.moveY);
-        setHoveredTargetId(hovered);
-      },
-      onPanResponderRelease: (_evt, gestureState) => {
-        const currentActive = activeItemIdRef.current;
-        if (!currentActive) return;
+  const handleDragStart = (itemId: string) => {
+    setActiveItemId(itemId);
+    setIsDragging(true);
+    refreshDropZones();
+  };
 
-        const matchedTargetId = getTargetAtPoint(gestureState.moveX, gestureState.moveY);
+  const handleDragMove = (itemId: string, x: number, y: number) => {
+    setActiveItemId(itemId);
+    setHoveredTargetId(getTargetAtPoint(x, y));
+  };
 
-        setHoveredTargetId(null);
-        setIsDragging(false);
+  const handleDragEnd = (itemId: string, x: number, y: number) => {
+    const matchedTargetId = getTargetAtPoint(x, y);
+    setHoveredTargetId(null);
+    setIsDragging(false);
 
-        if (matchedTargetId) {
-          moveItemToPerson(currentActive, matchedTargetId);
-        } else {
-          Alert.alert(tRef.current("moveItemTitle"), tRef.current("moveQuickDropOnPerson"));
-        }
+    if (matchedTargetId) {
+      moveItemToPerson(itemId, matchedTargetId);
+      return;
+    }
 
-        Animated.spring(dragTranslate, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          bounciness: 8,
-        }).start();
-      },
-      onPanResponderTerminate: () => {
-        setHoveredTargetId(null);
-        setIsDragging(false);
-        Animated.spring(dragTranslate, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          bounciness: 8,
-        }).start();
-      },
-    })
-  ).current;
+    setActiveItemId(itemId);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -346,30 +393,6 @@ export default function ItemsScreen() {
                 <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("moveQuickHintPeople")}</Text>
               ) : null}
 
-              {defaultItemLocationType === "person" && activeItem ? (
-                <Animated.View
-                  style={[
-                    styles.toolCard,
-                    {
-                      backgroundColor: colors.cardBackground,
-                      borderColor: hoveredTargetId ? colors.primary : colors.border,
-                      borderWidth: 1,
-                      transform: dragTranslate.getTranslateTransform(),
-                    },
-                  ]}
-                  {...panResponder.panHandlers}
-                >
-                  <View style={styles.toolTouch}>
-                    <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
-                      <Ionicons name="cube-outline" size={24} color={colors.primary} />
-                    </View>
-                    <View style={styles.toolInfo}>
-                      <Text style={[styles.toolName, { color: colors.text }]}>{activeItem.name}</Text>
-                      <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{activeItem.category}</Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
             </View>
           }
           ListFooterComponent={
@@ -468,32 +491,22 @@ export default function ItemsScreen() {
             }
 
             return (
-              <TouchableOpacity
-                style={[
-                  styles.toolCard,
-                  {
-                    backgroundColor: colors.cardBackground,
-                    borderColor: activeItemId === item.id ? colors.primary : colors.border,
-                    borderWidth: activeItemId === item.id ? 1.5 : 1,
-                  },
-                ]}
-                activeOpacity={0.8}
+              <DraggableToolRow
+                item={item}
+                colors={colors}
+                isActive={activeItemId === item.id}
                 onPress={() => {
                   hapticLight();
                   setActiveItemId((prev) => (prev === item.id ? null : item.id));
                 }}
-              >
-                <View style={styles.toolTouch}>
-                  <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
-                    <Ionicons name="cube-outline" size={24} color={colors.primary} />
-                  </View>
-
-                  <View style={styles.toolInfo}>
-                    <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
-                    <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
+                onDragEnd={handleDragEnd}
+                onDragCancel={() => {
+                  setHoveredTargetId(null);
+                  setIsDragging(false);
+                }}
+              />
             );
           }}
         />
