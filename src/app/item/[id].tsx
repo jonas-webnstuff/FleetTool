@@ -54,7 +54,7 @@ export default function ItemDetailScreen() {
   const locationLabel = () => {
     if (item.locationType === "vehicle") {
       const v = vehicles.find((v) => v.id === item.assignedVehicle);
-      return v ? v.name : "Vehicle";
+      return v ? v.name : t("labelVehicle");
     }
     return item.assignedPerson ?? "—";
   };

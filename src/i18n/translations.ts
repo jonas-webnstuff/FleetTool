@@ -20,12 +20,14 @@ export const translations = {
     // Items screen
     searchPlaceholder: "Search items, people, categories...",
     noItemsYet: "No items yet",
+    noItemsForCurrentUser: "No tools assigned to you",
     tapToAdd: "Tap + to add your first item",
     itemSingular: "item",
     itemPlural: "items",
     tracked: "tracked",
     resultSingular: "result",
     resultPlural: "results",
+    toolsAssignedToYouHint: "Showing tools assigned to you",
 
     // History screen
     returnedItemsHeading: "Returned items",
@@ -46,6 +48,7 @@ export const translations = {
     historyCategoryAdded: "Added category: {name}",
     historyCategoryRemoved: "Removed category: {name}",
     historyModeChanged: "Changed data source for {target} to {mode}",
+    historyByUser: "by {name}",
     toolsChooseItemHint: "Tap a tool above, then tap a vehicle below.",
     toolsSelectedHint: "Selected: {name}. Choose target vehicle below.",
 
@@ -110,9 +113,13 @@ export const translations = {
     moveItemTitle: "Move Item",
     selectMoveTarget: 'Select where to move "{name}"',
     moveQuickHint: "Drag the tool to a vehicle, or tap a vehicle card.",
+    moveQuickHintPeople: "Drag the tool to a person, or tap a person card.",
     moveQuickCurrentVehicle: "Current vehicle",
+    moveQuickCurrentPerson: "Current person",
     moveQuickNoVehicles: "No target vehicles available.",
+    moveQuickNoPeople: "No target people available.",
     moveQuickDropOnVehicle: "Drop on a vehicle card to move.",
+    moveQuickDropOnPerson: "Drop on a person card to move.",
     newPersonPlaceholder: "New person name...",
     vehicleLoadoutTitle: "Fill vehicle",
     loadoutSelectTools: "Select tools to place in {name}",
@@ -189,12 +196,14 @@ export const translations = {
     // Items screen
     searchPlaceholder: "Sök föremål, personer, kategorier...",
     noItemsYet: "Inga föremål ännu",
+    noItemsForCurrentUser: "Inga verktyg tilldelade till dig",
     tapToAdd: "Tryck + för att lägga till ditt första föremål",
     itemSingular: "föremål",
     itemPlural: "föremål",
     tracked: "spårade",
     resultSingular: "resultat",
     resultPlural: "resultat",
+    toolsAssignedToYouHint: "Visar verktyg som är tilldelade till dig",
 
     // History screen
     returnedItemsHeading: "Returnerade föremål",
@@ -215,6 +224,7 @@ export const translations = {
     historyCategoryAdded: "Lade till kategori: {name}",
     historyCategoryRemoved: "Tog bort kategori: {name}",
     historyModeChanged: "Bytte datakälla för {target} till {mode}",
+    historyByUser: "av {name}",
     toolsChooseItemHint: "Tryck på ett verktyg ovan, välj sedan fordon nedan.",
     toolsSelectedHint: "Vald: {name}. Välj målfordon nedan.",
 
@@ -279,9 +289,13 @@ export const translations = {
     moveItemTitle: "Flytta föremål",
     selectMoveTarget: 'Välj vart du vill flytta "{name}"',
     moveQuickHint: "Dra verktyget till ett fordon, eller tryck på ett fordonskort.",
+    moveQuickHintPeople: "Dra verktyget till en person, eller tryck på ett personkort.",
     moveQuickCurrentVehicle: "Nuvarande fordon",
+    moveQuickCurrentPerson: "Nuvarande person",
     moveQuickNoVehicles: "Inga målfordon tillgängliga.",
+    moveQuickNoPeople: "Inga målpersoner tillgängliga.",
     moveQuickDropOnVehicle: "Släpp på ett fordonskort för att flytta.",
+    moveQuickDropOnPerson: "Släpp på ett personkort för att flytta.",
     newPersonPlaceholder: "Nytt personnamn...",
     vehicleLoadoutTitle: "Fyll fordon",
     loadoutSelectTools: "Välj verktyg som ska läggas i {name}",

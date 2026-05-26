@@ -1,20 +1,169 @@
-import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
+import { Alert, View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@clerk/clerk-expo";
+import { useEffect, useState } from "react";
+import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { useItems } from "@/context/ItemsContext";
+import { useSupabase } from "@/lib/supabase";
+import { clearPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
+import { clearPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import ScreenHeader from "@/components/ScreenHeader";
+
+const CLERK_NATIVE_SESSION_TOKEN_KEY = "__clerk_client_jwt";
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const clerk = useClerk();
+  const { isLoaded: isAuthLoaded, userId, sessionId, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const supabase = useSupabase();
   const { colors, mode, setMode } = useTheme();
   const { t, language, setLanguage } = useLanguage();
-  const { itemMode, vehicleMode, categoryMode, setItemMode, setVehicleMode, setCategoryMode } = useItems();
   const insets = useSafeAreaInsets();
+  const [resolvedCompanyId, setResolvedCompanyId] = useState<string | null>(null);
+  const [resolvedCompanyName, setResolvedCompanyName] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const describeError = (value: unknown): string => {
+    if (value instanceof Error) {
+      return value.message || value.name || "Error";
+    }
+
+    if (typeof value === "string") {
+      return value || "empty string";
+    }
+
+    if (value && typeof value === "object") {
+      const maybe = value as {
+        message?: unknown;
+        errors?: Array<{ message?: string; longMessage?: string; code?: string }>;
+        code?: unknown;
+      };
+
+      const clerkError = maybe.errors?.[0];
+      const clerkMessage = clerkError?.longMessage ?? clerkError?.message;
+      const plainMessage = typeof maybe.message === "string" ? maybe.message : "";
+      const errorCode = clerkError?.code || (typeof maybe.code === "string" ? maybe.code : "");
+
+      if (clerkMessage || plainMessage || errorCode) {
+        return [clerkMessage || plainMessage || "unknown", errorCode ? `code=${errorCode}` : ""]
+          .filter(Boolean)
+          .join(" | ");
+      }
+
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return "unserializable object";
+      }
+    }
+
+    return String(value);
+  };
+
+  const clearClerkNativeSessionToken = async () => {
+    try {
+      await SecureStore.deleteItemAsync(CLERK_NATIVE_SESSION_TOKEN_KEY);
+    } catch (error) {
+      console.warn("Failed to clear Clerk native session token", error);
+    }
+  };
+
+  const clearLocalAuthArtifacts = async () => {
+    await clearClerkNativeSessionToken();
+    await clearPendingMembershipLink();
+    await clearPendingClerkNameSync();
+  };
+
+  const refreshResolvedCompany = async (): Promise<string | null> => {
+    if (!isAuthLoaded) {
+      return null;
+    }
+
+    if (!isSignedIn || !userId) {
+      setResolvedCompanyId(null);
+      setResolvedCompanyName(null);
+      return null;
+    }
+
+    const { data: companyIdData, error: companyIdError } = await supabase.rpc("current_company_id");
+
+    if (companyIdError || !companyIdData) {
+      return null;
+    }
+
+    const companyId = String(companyIdData);
+    const { data: companyRow } = await supabase
+      .from("companies")
+      .select("name")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    setResolvedCompanyId(companyId);
+    setResolvedCompanyName((companyRow?.name as string | undefined) ?? null);
+    return companyId;
+  };
+
+  useEffect(() => {
+    void refreshResolvedCompany();
+  }, [isAuthLoaded, isSignedIn, supabase, userId]);
+
+  const primaryEmail = user?.primaryEmailAddress?.emailAddress
+    ?? user?.emailAddresses?.[0]?.emailAddress
+    ?? null;
+  const primaryName =
+    user?.fullName?.trim()
+    || [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim()
+    || null;
+
+  const handleSignOut = async () => {
+    if (!isAuthLoaded || isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+
+    const goToSignIn = () => {
+      router.replace("/sign-in");
+    };
+
+    try {
+      if (sessionId) {
+        await clerk.signOut({ sessionId });
+      } else {
+        await clerk.signOut();
+      }
+
+      await clerk.setActive({ session: null });
+      await clearLocalAuthArtifacts();
+      goToSignIn();
+    } catch (error) {
+      const message = describeError(error);
+
+      console.warn("Sign out error:", error);
+
+      try {
+        await clerk.signOut();
+        await clerk.setActive({ session: null });
+        await clearLocalAuthArtifacts();
+        goToSignIn();
+      } catch (fallbackError) {
+        const fallbackMessage = describeError(fallbackError);
+
+        await clearLocalAuthArtifacts();
+        Alert.alert(
+          "Utloggning",
+          `Utloggning misslyckades delvis (${message}). Lokal session rensades (${fallbackMessage}).`
+        );
+        goToSignIn();
+      }
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -25,7 +174,7 @@ export default function SettingsScreen() {
       >
       <Text style={[styles.screenTitle, { color: colors.text }]}>{t("settingsTitle")}</Text>
 
-      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
+      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}> 
         <View style={styles.row}>
           <Ionicons name="moon-outline" size={20} color={colors.primary} />
           <Text style={[styles.rowLabel, { color: colors.text }]}>{t("darkMode")}</Text>
@@ -67,36 +216,17 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push("/categories")}> 
-          <Ionicons name="pricetags-outline" size={20} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("categories")}</Text>
-            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>{t("categoryManagement")}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push("/vehicles")}> 
-          <Ionicons name="car-sport-outline" size={20} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("settingsVehicles")}</Text>
-            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>{t("vehicleManagement")}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <TouchableOpacity
-          style={styles.row}
+          style={[styles.row, isSigningOut && { opacity: 0.6 }]}
           activeOpacity={0.7}
-          onPress={async () => {
-            await signOut();
-            router.replace("/sign-in");
+          disabled={isSigningOut}
+          onPress={() => {
+            void handleSignOut();
           }}
         >
           <Ionicons name="log-out-outline" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>Logga ut</Text>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{isSigningOut ? "Loggar ut..." : "Logga ut"}</Text>
             <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>Avsluta sessionen på den här enheten</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
@@ -104,35 +234,27 @@ export default function SettingsScreen() {
       </View>
 
 
-      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>DATAKÄLLA</Text>
-      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
-        {(
-          [
-            { key: "item", mode: itemMode, setter: setItemMode, label: "Inventarier", icon: "cube-outline" as const },
-            { key: "vehicle", mode: vehicleMode, setter: setVehicleMode, label: "Fordon", icon: "car-sport-outline" as const },
-            { key: "category", mode: categoryMode, setter: setCategoryMode, label: "Kategorier", icon: "pricetags-outline" as const },
-          ] as const
-        ).map(({ key, mode: m, setter, label, icon }, idx, arr) => (
-          <View key={key}>
-            <View style={styles.row}>
-              <Ionicons name={icon} size={20} color={colors.primary} />
-              <Text style={[styles.rowLabel, { color: colors.text, flex: 1 }]}>{label}</Text>
-              <TouchableOpacity
-                style={[styles.modeChip, { borderColor: colors.border, backgroundColor: m === "local" ? colors.primary : colors.cardBackground }]}
-                onPress={() => setter("local")}
-              >
-                <Text style={[styles.modeChipText, { color: m === "local" ? colors.white : colors.textSecondary }]}>Lokalt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeChip, { borderColor: colors.border, backgroundColor: m === "central" ? colors.primary : colors.cardBackground }]}
-                onPress={() => setter("central")}
-              >
-                <Text style={[styles.modeChipText, { color: m === "central" ? colors.white : colors.textSecondary }]}>Centralt</Text>
-              </TouchableOpacity>
-            </View>
-            {idx < arr.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>KONTO</Text>
+      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}> 
+        <View style={styles.row}>
+          <Ionicons name="person-circle-outline" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Inloggad användare</Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>
+              {primaryName ?? primaryEmail ?? "Ingen användare"}
+            </Text>
           </View>
-        ))}
+        </View>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={styles.row}>
+          <Ionicons name="business-outline" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Företag</Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>
+              {resolvedCompanyName ?? "Ingen företagskoppling hittad"}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <Text style={[styles.version, { color: colors.textSecondary }]}>{t("version")}</Text>
@@ -194,16 +316,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
     marginLeft: 4,
-  },
-  modeChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginLeft: 4,
-  },
-  modeChipText: {
-    fontSize: 12,
-    fontFamily: "Roboto_500Medium",
   },
 });

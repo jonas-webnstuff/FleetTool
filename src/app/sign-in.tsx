@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignIn } from "@clerk/clerk-expo";
+import * as WebBrowser from "expo-web-browser";
+import { useSignIn, useSSO } from "@clerk/clerk-expo";
 import { useTheme } from "@/context/ThemeContext";
-import { setPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
+import { clearPendingClerkNameSync, setPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
+import { clearPendingMembershipLink, setPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import { useSupabase } from "@/lib/supabase";
+
+WebBrowser.maybeCompleteAuthSession();
 
 function splitFullName(fullName: string): { firstName: string | null; lastName: string | null } {
   const trimmed = fullName.trim();
@@ -27,6 +31,7 @@ export default function SignInScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { isLoaded, signIn, setActive } = useSignIn();
+  const { startSSOFlow } = useSSO();
   const supabase = useSupabase();
 
   const [emailAddress, setEmailAddress] = useState("");
@@ -41,6 +46,43 @@ export default function SignInScreen() {
   const [secondFactorPhoneNumberId, setSecondFactorPhoneNumberId] = useState<string | null>(null);
   const [secondFactorEmailAddressId, setSecondFactorEmailAddressId] = useState<string | null>(null);
 
+  const onOAuthSignIn = async (strategy: "oauth_google" | "oauth_apple") => {
+    if (loading) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const { createdSessionId, setActive: setOAuthActive } = await startSSOFlow({ strategy });
+
+      if (!createdSessionId) {
+        setError("Inloggningen med extern leverantör kunde inte slutföras.");
+        return;
+      }
+
+      if (setOAuthActive) {
+        await setOAuthActive({ session: createdSessionId });
+      } else {
+        await setActive({ session: createdSessionId });
+      }
+
+      await clearPendingMembershipLink();
+      await clearPendingClerkNameSync();
+      router.replace("/(tabs)");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" &&
+        err !== null &&
+        "message" in err &&
+        typeof (err as { message?: string }).message === "string"
+          ? (err as { message: string }).message
+          : "Inloggningen med extern leverantör misslyckades.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const completeSignedInSession = async (createdSessionId: string) => {
     await setActive({ session: createdSessionId });
 
@@ -50,11 +92,13 @@ export default function SignInScreen() {
     }
 
     const normalizedEmail = emailAddress.trim().toLowerCase();
+    await setPendingMembershipLink({ email: normalizedEmail });
+
     const { data: membershipRows } = await supabase
       .from("company_memberships")
       .select("full_name")
       .eq("email", normalizedEmail)
-      .eq("status", "active")
+      .in("status", ["active", "invited"])
       .order("updated_at", { ascending: false })
       .limit(1);
 
@@ -197,6 +241,36 @@ export default function SignInScreen() {
         <Text style={[styles.title, { color: colors.text }]}>Logga in i FleetTool</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Använd ditt konto för att komma in i testmiljön.</Text>
 
+        <Pressable
+          onPress={() => void onOAuthSignIn("oauth_apple")}
+          disabled={!isLoaded || loading}
+          style={({ pressed }) => [
+            styles.socialButton,
+            styles.appleButton,
+            { opacity: pressed || loading ? 0.88 : 1 },
+          ]}
+        >
+          <Text style={styles.socialButtonText}>Fortsätt med Apple</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => void onOAuthSignIn("oauth_google")}
+          disabled={!isLoaded || loading}
+          style={({ pressed }) => [
+            styles.socialButton,
+            styles.googleButton,
+            { opacity: pressed || loading ? 0.88 : 1 },
+          ]}
+        >
+          <Text style={[styles.socialButtonText, styles.googleButtonText]}>Fortsätt med Google</Text>
+        </Pressable>
+
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.dividerText, { color: colors.textSecondary }]}>eller</Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        </View>
+
         <TextInput
           autoCapitalize="none"
           autoComplete="email"
@@ -293,6 +367,44 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     marginBottom: 8,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginVertical: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  socialButton: {
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  appleButton: {
+    backgroundColor: "#111111",
+  },
+  googleButton: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d8dee7",
+  },
+  googleButtonText: {
+    color: "#10283a",
+  },
+  socialButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#ffffff",
   },
   input: {
     borderWidth: 1,

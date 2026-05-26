@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ const EDIT_ORANGE = "#F57C00";
 export default function LocationsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { items, vehicles, addVehicle, updateVehicle, removeVehicle, vehicleMode } = useItems();
+  const { items, members, vehicles, addVehicle, updateVehicle, removeVehicle, vehicleMode, defaultItemLocationType } = useItems();
   const { t } = useLanguage();
   const slideStyle = useTabSlide(1);
   const [addVehicleVisible, setAddVehicleVisible] = useState(false);
@@ -33,16 +33,66 @@ export default function LocationsScreen() {
   const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
   const [editVehicleName, setEditVehicleName] = useState("");
 
-  const people = [...new Set(items.filter((i) => i.locationType === "person" && i.assignedPerson).map((i) => i.assignedPerson!))]
-    .map((name) => ({
-      name,
-      count: items.filter((i) => i.locationType === "person" && i.assignedPerson === name).length,
-    }));
+  const people = useMemo(() => {
+    const countByName = new Map<string, number>();
+
+    items.forEach((item) => {
+      if (item.locationType !== "person" || !item.assignedPerson) {
+        return;
+      }
+
+      const name = item.assignedPerson;
+      countByName.set(name, (countByName.get(name) ?? 0) + 1);
+    });
+
+    const rows: Array<{ name: string; count: number }> = [];
+    const seen = new Set<string>();
+
+    members.forEach((member) => {
+      const name = member.fullName?.trim() || member.email?.trim();
+      if (!name || seen.has(name)) {
+        return;
+      }
+
+      seen.add(name);
+      rows.push({
+        name,
+        count: countByName.get(name) ?? 0,
+      });
+    });
+
+    countByName.forEach((count, name) => {
+      if (seen.has(name)) {
+        return;
+      }
+
+      seen.add(name);
+      rows.push({ name, count });
+    });
+
+    rows.sort((a, b) => a.name.localeCompare(b.name, "sv"));
+
+    return rows;
+  }, [items, members]);
 
   const vehicleRows = vehicles.map((v) => ({
     ...v,
     count: items.filter((i) => i.locationType === "vehicle" && i.assignedVehicle === v.id).length,
   }));
+
+  const screenTitle = defaultItemLocationType === "vehicle" ? t("locationsTitle") : t("people");
+  const primarySectionTitle = defaultItemLocationType === "vehicle" ? t("vehicles") : t("people");
+  const locationSections = useMemo(
+    () => (
+      defaultItemLocationType === "vehicle"
+        ? [
+            { title: t("vehicles"), data: vehicleRows, key: "vehicles" },
+            { title: t("people"), data: people, key: "people" },
+          ]
+        : [{ title: t("people"), data: people, key: "people" }]
+    ),
+    [defaultItemLocationType, people, t, vehicleRows]
+  );
 
   const handleAddVehicle = () => {
     const name = newVehicleName.trim();
@@ -93,25 +143,17 @@ export default function LocationsScreen() {
       <Animated.View style={[{ flex: 1 }, slideStyle]}>
         <SectionList
           contentContainerStyle={styles.listContent}
-          sections={[
-            {
-              title: t("people"),
-              data: people,
-              key: "people",
-            },
-            {
-              title: t("vehicles"),
-              data: vehicleRows,
-              key: "vehicles",
-            },
-          ]}
+          sections={locationSections}
           keyExtractor={(item) => ("id" in item ? item.id : item.name)}
           ListHeaderComponent={
             <View>
               <View style={styles.titleRow}>
-                <Text style={[styles.screenTitle, { color: colors.text }]}>{t("locationsTitle")}</Text>
+                <Text style={[styles.screenTitle, { color: colors.text }]}>{screenTitle}</Text>
               </View>
-              {vehicleMode === "central" && (
+              <Text style={[styles.primaryHint, { color: colors.textSecondary }]}>
+                {t("labelAssignTo")}: {primarySectionTitle}
+              </Text>
+              {defaultItemLocationType === "vehicle" && vehicleMode === "central" && (
                 <TouchableOpacity onPress={() => router.push("/vehicles")} activeOpacity={0.8}>
                   <Text style={[styles.centralHint, { color: colors.textSecondary }]}>{t("vehiclesManagedCentrallyHint")}</Text>
                 </TouchableOpacity>
@@ -308,6 +350,10 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 26,
     fontWeight: "600",
+  },
+  primaryHint: {
+    fontSize: 12,
+    marginBottom: 8,
   },
   centralHint: {
     fontSize: 12,

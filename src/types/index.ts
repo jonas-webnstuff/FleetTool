@@ -9,6 +9,7 @@ export type Member = {
   id: string;       // clerk_user_id / membership UUID in Supabase
   fullName: string;
   email: string;
+  clerkUserId?: string;
 };
 
 export type FleetItem = {
@@ -17,6 +18,7 @@ export type FleetItem = {
   category: string;
   locationType: LocationType;
   assignedPerson?: string;
+  assignedMembershipId?: string;
   assignedVehicle?: string; // vehicle id
   notes?: string;
   image?: string;
@@ -42,6 +44,7 @@ export type ActivityEvent = {
   id: string;
   action: ActivityAction;
   createdAt: string;
+  actorName?: string;
   itemName?: string;
   vehicleName?: string;
   fromName?: string;

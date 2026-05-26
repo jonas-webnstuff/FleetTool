@@ -21,34 +21,115 @@ import ScreenHeader from "@/components/ScreenHeader";
 
 export default function MoveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, vehicles, moveItem, canMoveBetweenVehiclesOnly } = useItems();
+  const { items, vehicles, members, moveItem, canMoveBetweenVehiclesOnly, defaultItemLocationType } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const router = useRouter();
-  const [hoveredVehicleId, setHoveredVehicleId] = useState<string | null>(null);
+  const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const item = items.find((i) => i.id === id);
+  const targetMode: "person" | "vehicle" = defaultItemLocationType;
 
   const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const zoneLayoutsRef = useRef<Record<string, LayoutRectangle>>({});
   const zoneRefs = useRef<Record<string, RNView | null>>({});
 
-  const currentVehicleId = item?.assignedVehicle;
-  const targetVehicles = useMemo(
-    () => vehicles.filter((vehicle) => vehicle.id !== currentVehicleId),
-    [currentVehicleId, vehicles]
+  const currentVehicleId = item?.assignedVehicle ?? null;
+  const currentPersonName = item?.assignedPerson ?? null;
+
+  const memberLabelToId = useMemo(() => {
+    const map = new Map<string, string>();
+
+    members.forEach((member) => {
+      const fullName = member.fullName?.trim();
+      const email = member.email?.trim();
+
+      if (fullName) {
+        map.set(fullName, member.id);
+      }
+
+      if (email) {
+        map.set(email, member.id);
+      }
+    });
+
+    return map;
+  }, [members]);
+
+  const personTargets = useMemo(() => {
+    const seen = new Set<string>();
+    const targetsFromItems = items
+      .filter((candidate) => candidate.locationType === "person" && candidate.assignedPerson)
+      .map((candidate) => ({
+        id: candidate.assignedMembershipId ?? candidate.assignedPerson!,
+        label: candidate.assignedPerson!,
+        type: "person" as const,
+      }))
+      .filter((candidate) => {
+        if (!candidate.label || candidate.label === currentPersonName) {
+          return false;
+        }
+
+        if (seen.has(candidate.id)) {
+          return false;
+        }
+
+        seen.add(candidate.id);
+        return true;
+      });
+
+    const targetsFromMembers = members
+      .map((member) => ({ id: member.id, label: member.fullName, type: "person" as const }))
+      .filter((candidate) => {
+        if (!candidate.label || candidate.label === currentPersonName || seen.has(candidate.id)) {
+          return false;
+        }
+
+        seen.add(candidate.id);
+        return true;
+      });
+
+    return [...targetsFromItems, ...targetsFromMembers];
+  }, [currentPersonName, items, members]);
+
+  const targets = useMemo(
+    () => (
+      targetMode === "vehicle"
+        ? vehicles
+            .filter((vehicle) => vehicle.id !== currentVehicleId)
+            .map((vehicle) => ({ id: vehicle.id, label: vehicle.name, type: "vehicle" as const }))
+        : personTargets
+    ),
+    [currentVehicleId, personTargets, targetMode, vehicles]
   );
 
-  const performMoveToVehicle = (vehicleId: string) => {
+  const performMoveToTarget = (targetId: string) => {
     if (!item) return;
 
-    if (canMoveBetweenVehiclesOnly && item.locationType !== "vehicle") {
+    const target = targets.find((candidate) => candidate.id === targetId);
+    if (!target) return;
+
+    const isAllowedVehicleSwap =
+      item.locationType === "vehicle"
+      && target.type === "vehicle"
+      && Boolean(item.assignedVehicle)
+      && item.assignedVehicle !== target.id;
+
+    if (canMoveBetweenVehiclesOnly && !isAllowedVehicleSwap) {
       Alert.alert(t("restrictedFeatureTitle"), t("restrictedMoveBody"));
       return;
     }
 
     hapticLight();
-    moveItem(item.id, "vehicle", undefined, vehicleId);
+    if (target.type === "vehicle") {
+      moveItem(item.id, "vehicle", undefined, target.id);
+    } else {
+      const targetMembershipId = members.some((member) => member.id === target.id)
+        ? target.id
+        : (memberLabelToId.get(target.label) ?? undefined);
+      moveItem(item.id, "person", target.label, undefined, targetMembershipId);
+    }
     router.back();
   };
 
@@ -64,27 +145,44 @@ export default function MoveScreen() {
     return null;
   };
 
+  const refreshDropZones = () => {
+    Object.entries(zoneRefs.current).forEach(([vehicleId, node]) => {
+      if (!node) return;
+      node.measureInWindow((x, y, width, height) => {
+        zoneLayoutsRef.current[vehicleId] = { x, y, width, height };
+      });
+    });
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
         return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
       },
+      onPanResponderGrant: () => {
+        setIsDragging(true);
+        refreshDropZones();
+      },
       onPanResponderMove: (_evt, gestureState) => {
         dragTranslate.setValue({ x: gestureState.dx, y: gestureState.dy });
         const hovered = getVehicleAtPoint(gestureState.moveX, gestureState.moveY);
-        setHoveredVehicleId(hovered);
+        setHoveredTargetId(hovered);
       },
       onPanResponderRelease: (_evt, gestureState) => {
-        const matchedVehicleId = getVehicleAtPoint(gestureState.moveX, gestureState.moveY);
+          const matchedTargetId = getVehicleAtPoint(gestureState.moveX, gestureState.moveY);
 
         setTimeout(() => {
-          if (matchedVehicleId) {
-            performMoveToVehicle(matchedVehicleId);
+            if (matchedTargetId) {
+              performMoveToTarget(matchedTargetId);
           } else {
-            Alert.alert(t("moveItemTitle"), t("moveQuickDropOnVehicle"));
+              Alert.alert(
+                t("moveItemTitle"),
+                targetMode === "vehicle" ? t("moveQuickDropOnVehicle") : t("moveQuickDropOnPerson")
+              );
           }
 
-          setHoveredVehicleId(null);
+            setHoveredTargetId(null);
+          setIsDragging(false);
 
           Animated.spring(dragTranslate, {
             toValue: { x: 0, y: 0 },
@@ -94,7 +192,8 @@ export default function MoveScreen() {
         }, 40);
       },
       onPanResponderTerminate: () => {
-        setHoveredVehicleId(null);
+        setHoveredTargetId(null);
+        setIsDragging(false);
         Animated.spring(dragTranslate, {
           toValue: { x: 0, y: 0 },
           useNativeDriver: false,
@@ -115,11 +214,15 @@ export default function MoveScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title={t("moveItemTitle")} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} scrollEnabled={!isDragging}>
         <View style={[styles.currentWrap, { backgroundColor: colors.cardBackground }]}> 
-          <Text style={[styles.currentLabel, { color: colors.textSecondary }]}>{t("moveQuickCurrentVehicle")}</Text>
+          <Text style={[styles.currentLabel, { color: colors.textSecondary }]}>
+            {targetMode === "vehicle" ? t("moveQuickCurrentVehicle") : t("moveQuickCurrentPerson")}
+          </Text>
           <Text style={[styles.currentVehicleName, { color: colors.text }]}> 
-            {vehicles.find((v) => v.id === currentVehicleId)?.name ?? "-"}
+            {item.locationType === "vehicle"
+              ? vehicles.find((v) => v.id === currentVehicleId)?.name ?? "-"
+              : (item.assignedPerson ?? "-")}
           </Text>
         </View>
 
@@ -129,7 +232,7 @@ export default function MoveScreen() {
             styles.toolRow,
             {
               backgroundColor: colors.cardBackground,
-              borderColor: hoveredVehicleId ? colors.primary : colors.border,
+              borderColor: hoveredTargetId ? colors.primary : colors.border,
               transform: dragTranslate.getTranslateTransform(),
             },
           ]}
@@ -145,52 +248,56 @@ export default function MoveScreen() {
         </Animated.View>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 10 }]}>
-          {t("vehicles")}
+          {targetMode === "vehicle" ? t("vehicles") : t("people")}
         </Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("moveQuickHint")}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {targetMode === "vehicle" ? t("moveQuickHint") : t("moveQuickHintPeople")}
+        </Text>
 
-        {targetVehicles.length === 0 ? (
+        {targets.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={{ color: colors.textSecondary }}>{t("moveQuickNoVehicles")}</Text>
+            <Text style={{ color: colors.textSecondary }}>
+              {targetMode === "vehicle" ? t("moveQuickNoVehicles") : t("moveQuickNoPeople")}
+            </Text>
           </View>
         ) : (
           <View style={styles.zoneList}>
-            {targetVehicles.map((vehicle) => (
+            {targets.map((target) => (
               <TouchableOpacity
-                key={vehicle.id}
+                key={target.id}
                 ref={(node) => {
-                  zoneRefs.current[vehicle.id] = node;
+                  zoneRefs.current[target.id] = node;
                 }}
                 onLayout={() => {
-                  const node = zoneRefs.current[vehicle.id];
+                  const node = zoneRefs.current[target.id];
                   if (!node) return;
                   node.measureInWindow((x, y, width, height) => {
-                    zoneLayoutsRef.current[vehicle.id] = { x, y, width, height };
+                    zoneLayoutsRef.current[target.id] = { x, y, width, height };
                   });
                 }}
                 style={[
                   styles.zoneCard,
                   {
                     backgroundColor:
-                      hoveredVehicleId === vehicle.id ? colors.primary : colors.cardBackground,
-                    borderColor: hoveredVehicleId === vehicle.id ? colors.primary : colors.border,
+                      hoveredTargetId === target.id ? colors.primary : colors.cardBackground,
+                    borderColor: hoveredTargetId === target.id ? colors.primary : colors.border,
                   },
                 ]}
                 activeOpacity={0.8}
-                onPress={() => performMoveToVehicle(vehicle.id)}
+                onPress={() => performMoveToTarget(target.id)}
               >
                 <Ionicons
-                  name="car"
+                  name={target.type === "vehicle" ? "car" : "person"}
                   size={18}
-                  color={hoveredVehicleId === vehicle.id ? colors.white : colors.primary}
+                  color={hoveredTargetId === target.id ? colors.white : colors.primary}
                 />
                 <Text
                   style={[
                     styles.zoneCardText,
-                    { color: hoveredVehicleId === vehicle.id ? colors.white : colors.text },
+                    { color: hoveredTargetId === target.id ? colors.white : colors.text },
                   ]}
                 >
-                  {vehicle.name}
+                  {target.label}
                 </Text>
               </TouchableOpacity>
             ))}

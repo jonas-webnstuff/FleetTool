@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useSearch } from "@/context/SearchContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useItems } from "@/context/ItemsContext";
 import { hapticLight } from "@/hooks/useHaptic";
 
 export default function TabLayout() {
@@ -13,6 +14,7 @@ export default function TabLayout() {
   const router = useRouter();
   const { searchVisible, toggleSearch } = useSearch();
   const { t } = useLanguage();
+  const { defaultItemLocationType } = useItems();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -66,9 +68,13 @@ export default function TabLayout() {
         <Tabs.Screen
           name="locations"
           options={{
-            title: t("tabLocations"),
+            title: defaultItemLocationType === "person" ? t("people") : t("tabLocations"),
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="car-sport-outline" size={size} color={color} />
+              <Ionicons
+                name={defaultItemLocationType === "person" ? "people-outline" : "car-sport-outline"}
+                size={size}
+                color={color}
+              />
             ),
           }}
         />

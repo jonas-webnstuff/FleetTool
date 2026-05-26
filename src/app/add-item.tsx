@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ export default function AddItemScreen() {
     members,
     categoryMode,
     itemMode,
+    defaultItemLocationType,
     canManageLoadout,
   } = useItems();
   const { colors } = useTheme();
@@ -40,13 +41,41 @@ export default function AddItemScreen() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState(categories[0] ?? "Other");
-  const [locationType, setLocationType] = useState<FleetItem["locationType"]>("person");
+  const [locationType, setLocationType] = useState<FleetItem["locationType"]>(defaultItemLocationType);
+  const [didOverrideDefaultLocation, setDidOverrideDefaultLocation] = useState(false);
   const [assignedPerson, setAssignedPerson] = useState(
     itemMode === "central" ? (members[0]?.fullName ?? "") : ""
   );
   const [assignedVehicle, setAssignedVehicle] = useState(vehicles[0]?.id ?? "");
   const [notes, setNotes] = useState("");
   const [imageUri, setImageUri] = useState<string | undefined>();
+
+  const assignOptions = useMemo(
+    () => (
+      defaultItemLocationType === "vehicle"
+        ? ["vehicle", "person"]
+        : ["person", "vehicle"]
+    ),
+    [defaultItemLocationType]
+  );
+
+  useEffect(() => {
+    if (didOverrideDefaultLocation) {
+      return;
+    }
+
+    setLocationType(defaultItemLocationType);
+  }, [defaultItemLocationType, didOverrideDefaultLocation]);
+
+  useEffect(() => {
+    if (locationType === "vehicle" && !assignedVehicle && vehicles.length > 0) {
+      setAssignedVehicle(vehicles[0].id);
+    }
+
+    if (locationType === "person" && itemMode === "central" && !assignedPerson.trim() && members.length > 0) {
+      setAssignedPerson(members[0].fullName);
+    }
+  }, [assignedPerson, assignedVehicle, itemMode, locationType, members, vehicles]);
 
   if (!canManageLoadout) {
     return (
@@ -220,44 +249,37 @@ export default function AddItemScreen() {
         {/* Location type */}
         <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelAssignTo")}</Text>
         <View style={styles.locationToggle}>
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              {
-                backgroundColor: locationType === "person" ? colors.primary : colors.cardBackground,
-                borderColor: locationType === "person" ? colors.primary : colors.border,
-              },
-            ]}
-            onPress={() => { hapticSelection(); setLocationType("person"); }}
-          >
-            <Ionicons
-              name="person-outline"
-              size={16}
-              color={locationType === "person" ? colors.white : colors.text}
-            />
-            <Text style={{ color: locationType === "person" ? colors.white : colors.text, fontSize: 14 }}>
-              {t("labelPerson")}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              {
-                backgroundColor: locationType === "vehicle" ? colors.primary : colors.cardBackground,
-                borderColor: locationType === "vehicle" ? colors.primary : colors.border,
-              },
-            ]}
-            onPress={() => { hapticSelection(); setLocationType("vehicle"); }}
-          >
-            <Ionicons
-              name="car-outline"
-              size={16}
-              color={locationType === "vehicle" ? colors.white : colors.text}
-            />
-            <Text style={{ color: locationType === "vehicle" ? colors.white : colors.text, fontSize: 14 }}>
-              {t("labelVehicle")}
-            </Text>
-          </TouchableOpacity>
+          {assignOptions.map((option) => {
+            const isPerson = option === "person";
+            const isActive = locationType === option;
+
+            return (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.toggleButton,
+                  {
+                    backgroundColor: isActive ? colors.primary : colors.cardBackground,
+                    borderColor: isActive ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  hapticSelection();
+                  setDidOverrideDefaultLocation(true);
+                  setLocationType(option);
+                }}
+              >
+                <Ionicons
+                  name={isPerson ? "person-outline" : "car-outline"}
+                  size={16}
+                  color={isActive ? colors.white : colors.text}
+                />
+                <Text style={{ color: isActive ? colors.white : colors.text, fontSize: 14 }}>
+                  {isPerson ? t("labelPerson") : t("labelVehicle")}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Person / Vehicle selector */}

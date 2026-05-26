@@ -42,6 +42,7 @@ export default function HistoryScreen() {
             from: event.fromName ?? "-",
             to: event.toName ?? "-",
           }),
+          showActor: true,
           icon: "swap-horizontal-outline",
         };
       case "items_assigned_vehicle":
@@ -50,6 +51,7 @@ export default function HistoryScreen() {
             count: String(event.count ?? 0),
             vehicle: event.vehicleName ?? "-",
           }),
+          showActor: true,
           icon: "car-outline",
         };
       case "vehicle_added":
@@ -93,6 +95,7 @@ export default function HistoryScreen() {
       default:
         return {
           title: t("tabHistory"),
+          showActor: false,
           icon: "time-outline",
         };
     }
@@ -125,14 +128,25 @@ export default function HistoryScreen() {
           renderItem={({ item }) => {
             const eventUi = formatEvent(item);
             const time = new Date(item.createdAt).toLocaleString();
+            const actorText = item.actorName
+              ? t("historyByUser", { name: item.actorName })
+              : null;
+            const metaText = eventUi.showActor && actorText
+              ? `${actorText}  •  ${time}`
+              : time;
+
             return (
-              <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
-                <View style={[styles.iconWrap, { backgroundColor: colors.badgeBg }]}>
-                  <Ionicons name={eventUi.icon as any} size={24} color={colors.primary} />
+              <View style={[styles.row, { borderBottomColor: colors.border }]}> 
+                <View style={[styles.iconWrap, { backgroundColor: colors.badgeBg }]}> 
+                  <Ionicons name={eventUi.icon as any} size={16} color={colors.primary} />
                 </View>
                 <View style={styles.info}>
-                  <Text style={[styles.name, { color: colors.text }]}>{eventUi.title}</Text>
-                  <Text style={[styles.date, { color: colors.textSecondary }]}>{time}</Text>
+                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
+                    {eventUi.title}
+                  </Text>
+                  <Text style={[styles.date, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {metaText}
+                  </Text>
                 </View>
               </View>
             );
@@ -156,7 +170,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   empty: {
     alignItems: "center",
@@ -171,35 +185,29 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
   },
-  card: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
   },
   iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   info: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 10,
   },
   name: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "400",
   },
   date: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12,
+    marginTop: 3,
   },
 });
