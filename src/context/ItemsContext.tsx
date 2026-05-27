@@ -1053,6 +1053,20 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           : null;
 
       if (locationType === "person" && nextAssignedMembershipId) {
+        const optimisticItem = currentItem
+          ? {
+              ...currentItem,
+              locationType,
+              assignedPerson,
+              assignedMembershipId: nextAssignedMembershipId,
+              assignedVehicle: undefined,
+            }
+          : null;
+
+        if (optimisticItem) {
+          setItems((prev) => prev.map((i) => (i.id === id ? optimisticItem : i)));
+        }
+
         void supabase
           .rpc("move_item_to_person", {
             p_item_id: id,
@@ -1085,6 +1099,9 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
               );
               setItemsReloadTick((prev) => prev + 1);
             } else {
+              if (currentItem) {
+                setItems((prev) => prev.map((i) => (i.id === id ? currentItem : i)));
+              }
               console.warn("move_item_to_person rpc failed", {
                 id,
                 assignedMembershipId: nextAssignedMembershipId,

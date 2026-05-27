@@ -19,8 +19,10 @@ import { useItems } from "@/context/ItemsContext";
 import { useSearch } from "@/context/SearchContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
-import { hapticLight } from "@/hooks/useHaptic";
+import { hapticLight, hapticSelection } from "@/hooks/useHaptic";
 import { FleetItem } from "@/types";
+
+const UNASSIGNED_DROP_TARGET_ID = "__unassigned_drop_target__";
 
 type PersonDropTarget = {
   id: string;
@@ -316,8 +318,17 @@ export default function ItemsScreen() {
       return;
     }
 
-    hapticLight();
     moveItemRef.current(item.id, "person", target.label, undefined, target.membershipId);
+    setActiveItemId(null);
+  };
+
+  const moveItemToUnassigned = (itemId: string) => {
+    const item = itemsRef.current.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    moveItemRef.current(item.id, "person", undefined, undefined, undefined);
     setActiveItemId(null);
   };
 
@@ -348,6 +359,12 @@ export default function ItemsScreen() {
     setIsDragging(false);
 
     if (matchedTargetId) {
+      hapticSelection();
+      if (matchedTargetId === UNASSIGNED_DROP_TARGET_ID) {
+        moveItemToUnassigned(itemId);
+        return;
+      }
+
       moveItemToPerson(itemId, matchedTargetId);
       return;
     }
@@ -419,56 +436,61 @@ export default function ItemsScreen() {
             </View>
           }
           ListFooterComponent={
-            quickPeople.length > 0 ? (
+            quickPeople.length > 0 || unassignedTools.length > 0 ? (
               <View style={styles.quickPeopleSection}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("people")}</Text>
-                <View style={styles.quickPeopleWrap}>
-                  {quickPeople.map((person) => (
-                    <TouchableOpacity
-                      key={person.id}
-                      ref={(node) => {
-                        zoneRefs.current[person.id] = node;
-                      }}
-                      onLayout={() => {
-                        const node = zoneRefs.current[person.id];
-                        if (!node) return;
-                        node.measureInWindow((x, y, width, height) => {
-                          zoneLayoutsRef.current[person.id] = { x, y, width, height };
-                        });
-                      }}
-                      style={[
-                        styles.quickPersonChip,
-                        {
-                          backgroundColor: hoveredTargetId === person.id ? colors.primary : colors.cardBackground,
-                          borderColor: hoveredTargetId === person.id ? colors.primary : colors.border,
-                        },
-                      ]}
-                      activeOpacity={0.75}
-                      onPress={() => {
-                        if (activeItemId) {
-                          moveItemToPerson(activeItemId, person.id);
-                          return;
-                        }
+                {quickPeople.length > 0 ? (
+                  <>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("people")}</Text>
+                    <View style={styles.quickPeopleWrap}>
+                      {quickPeople.map((person) => (
+                        <TouchableOpacity
+                          key={person.id}
+                          ref={(node) => {
+                            zoneRefs.current[person.id] = node;
+                          }}
+                          onLayout={() => {
+                            const node = zoneRefs.current[person.id];
+                            if (!node) return;
+                            node.measureInWindow((x, y, width, height) => {
+                              zoneLayoutsRef.current[person.id] = { x, y, width, height };
+                            });
+                          }}
+                          style={[
+                            styles.quickPersonCard,
+                            {
+                              backgroundColor: hoveredTargetId === person.id ? colors.primary : colors.cardBackground,
+                              borderColor: hoveredTargetId === person.id ? colors.primary : colors.border,
+                            },
+                          ]}
+                          activeOpacity={0.75}
+                          onPress={() => {
+                            if (activeItemId) {
+                              hapticSelection();
+                              moveItemToPerson(activeItemId, person.id);
+                              return;
+                            }
 
-                        router.push(`/person/${encodeURIComponent(person.label)}`);
-                      }}
-                    >
-                      <Ionicons
-                        name="person-outline"
-                        size={16}
-                        color={hoveredTargetId === person.id ? colors.white : colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.quickPersonText,
-                          { color: hoveredTargetId === person.id ? colors.white : colors.text },
-                        ]}
-                      >
-                        {person.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                            router.push(`/person/${encodeURIComponent(person.label)}`);
+                          }}
+                        >
+                          <Ionicons
+                            name="person-outline"
+                            size={20}
+                            color={hoveredTargetId === person.id ? colors.white : colors.primary}
+                          />
+                          <Text
+                            style={[
+                              styles.quickPersonCardText,
+                              { color: hoveredTargetId === person.id ? colors.white : colors.text },
+                            ]}
+                          >
+                            {person.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                ) : null}
                 {activeItemId ? (
                   <Text style={[styles.selectionHint, { color: colors.textSecondary }]}> 
                     {t("moveItemTitle")}: {filtered.find((i) => i.id === activeItemId)?.name ?? ""}
@@ -478,6 +500,50 @@ export default function ItemsScreen() {
                 {unassignedTools.length > 0 ? (
                   <View style={styles.unassignedSection}>
                     <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
+                    <TouchableOpacity
+                      ref={(node) => {
+                        zoneRefs.current[UNASSIGNED_DROP_TARGET_ID] = node;
+                      }}
+                      onLayout={() => {
+                        const node = zoneRefs.current[UNASSIGNED_DROP_TARGET_ID];
+                        if (!node) return;
+                        node.measureInWindow((x, y, width, height) => {
+                          zoneLayoutsRef.current[UNASSIGNED_DROP_TARGET_ID] = { x, y, width, height };
+                        });
+                      }}
+                      style={[
+                        styles.unassignedDropZone,
+                        {
+                          backgroundColor:
+                            hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.primary : colors.cardBackground,
+                          borderColor:
+                            hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.primary : colors.border,
+                        },
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        if (!activeItemId) {
+                          return;
+                        }
+
+                        hapticSelection();
+                        moveItemToUnassigned(activeItemId);
+                      }}
+                    >
+                      <Ionicons
+                        name="archive-outline"
+                        size={18}
+                        color={hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.white : colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.unassignedDropZoneText,
+                          { color: hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.white : colors.text },
+                        ]}
+                      >
+                        Dra hit for att markera verktyg som olistat
+                      </Text>
+                    </TouchableOpacity>
                     <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("tapUnassignedToAssignYou")}</Text>
                     <View style={styles.quickPeopleWrap}>
                       {unassignedTools.map((item) => (
@@ -665,6 +731,25 @@ const styles = StyleSheet.create({
   quickPeopleSection: {
     marginTop: 6,
   },
+  quickPersonCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  quickPersonCardText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
   quickPersonChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -690,5 +775,20 @@ const styles = StyleSheet.create({
   },
   unassignedSection: {
     marginTop: 12,
+  },
+  unassignedDropZone: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  unassignedDropZoneText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
