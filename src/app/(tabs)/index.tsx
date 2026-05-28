@@ -40,21 +40,36 @@ function SwipeableToolRow({
   onSwipeLeft: (itemId: string) => void;
 }) {
   const swipeX = useRef(new Animated.Value(0)).current;
+  const hasTriggeredSwipeRef = useRef(false);
 
   const panResponder = useRef(
     PanResponder.create({
+      onPanResponderGrant: () => {
+        hasTriggeredSwipeRef.current = false;
+      },
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
-        return gestureState.dx < -10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
+        return gestureState.dx < -8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onMoveShouldSetPanResponderCapture: (_evt, gestureState) => {
+        return gestureState.dx < -8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
       },
       onPanResponderMove: (_evt, gestureState) => {
-        swipeX.setValue(Math.min(0, gestureState.dx));
-      },
-      onPanResponderRelease: (_evt, gestureState) => {
-        if (gestureState.dx < -80) {
+        const nextX = Math.max(-140, Math.min(0, gestureState.dx));
+        swipeX.setValue(nextX);
+
+        if (!hasTriggeredSwipeRef.current && gestureState.dx <= -48) {
+          hasTriggeredSwipeRef.current = true;
           hapticLight();
           onSwipeLeft(item.id);
-        }
 
+          Animated.spring(swipeX, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 6,
+          }).start();
+        }
+      },
+      onPanResponderRelease: () => {
         Animated.spring(swipeX, {
           toValue: 0,
           useNativeDriver: true,
@@ -62,6 +77,7 @@ function SwipeableToolRow({
         }).start();
       },
       onPanResponderTerminate: () => {
+        hasTriggeredSwipeRef.current = false;
         Animated.spring(swipeX, {
           toValue: 0,
           useNativeDriver: true,
@@ -72,35 +88,41 @@ function SwipeableToolRow({
   ).current;
 
   return (
-    <Animated.View
-      style={[
-        styles.toolCard,
-        {
-          backgroundColor: colors.cardBackground,
-          borderColor: colors.border,
-          borderWidth: 1,
-          transform: [{ translateX: swipeX }],
-          zIndex: 1,
-        },
-      ]}
-      {...panResponder.panHandlers}
-    >
-      <TouchableOpacity style={styles.toolTouch} activeOpacity={0.85} onPress={onPress}>
-        <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
-          <Ionicons name="cube-outline" size={24} color={colors.primary} />
-        </View>
+    <View style={styles.swipeContainer}>
+      <View style={[styles.swipeHintLayer, { backgroundColor: colors.primary }]} pointerEvents="none">
+        <Text style={[styles.swipeHintText, { color: colors.white }]}>Flytta till olistade</Text>
+      </View>
 
-        <View style={styles.toolInfo}>
-          <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
-          {!!item.notes ? (
-            <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
-              {item.notes}
-            </Text>
-          ) : null}
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+      <Animated.View
+        style={[
+          styles.toolCard,
+          {
+            backgroundColor: colors.cardBackground,
+            borderColor: colors.border,
+            borderWidth: 1,
+            transform: [{ translateX: swipeX }],
+            zIndex: 1,
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity style={styles.toolTouch} activeOpacity={0.85} onPress={onPress}>
+          <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+            <Ionicons name="cube-outline" size={24} color={colors.primary} />
+          </View>
+
+          <View style={styles.toolInfo}>
+            <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
+            <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+            {!!item.notes ? (
+              <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+                {item.notes}
+              </Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -413,6 +435,20 @@ export default function ItemsScreen() {
 }
 
 const styles = StyleSheet.create({
+  swipeContainer: {
+    marginBottom: 10,
+  },
+  swipeHintLayer: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingRight: 16,
+  },
+  swipeHintText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
   searchBar: {
     justifyContent: "flex-end",
   },
@@ -473,7 +509,6 @@ const styles = StyleSheet.create({
   },
   toolCard: {
     borderRadius: 12,
-    marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
