@@ -57,7 +57,7 @@ function SwipeableToolRow({
         const nextX = Math.max(-140, Math.min(0, gestureState.dx));
         swipeX.setValue(nextX);
 
-        if (!hasTriggeredSwipeRef.current && gestureState.dx <= -48) {
+        if (!hasTriggeredSwipeRef.current && gestureState.dx <= -80) {
           hasTriggeredSwipeRef.current = true;
           hapticLight();
           onSwipeLeft(item.id);
@@ -148,6 +148,7 @@ export default function ItemsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const searchAnim = useSharedValue(0);
+  const hasQuery = query.trim().length > 0;
 
   useEffect(() => {
     searchAnim.value = withTiming(searchVisible ? 1 : 0, {
@@ -194,17 +195,6 @@ export default function ItemsScreen() {
     });
   }, [currentMemberId, currentMemberName, defaultItemLocationType, itemMode, items]);
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return scopedItems;
-    const q = query.toLowerCase();
-    return scopedItems.filter(
-      (i) =>
-        i.name.toLowerCase().includes(q) ||
-        (i.assignedPerson ?? "").toLowerCase().includes(q) ||
-        i.category.toLowerCase().includes(q)
-    );
-  }, [query, scopedItems]);
-
   const unassignedTools = useMemo(() => {
     if (defaultItemLocationType !== "person") {
       return [] as FleetItem[];
@@ -217,6 +207,22 @@ export default function ItemsScreen() {
         && !(item.assignedPerson ?? "").trim()
     );
   }, [defaultItemLocationType, items]);
+
+  const filtered = useMemo(() => {
+    if (!hasQuery) {
+      return scopedItems;
+    }
+
+    const q = query.trim().toLowerCase();
+    const source = defaultItemLocationType === "person" ? unassignedTools : scopedItems;
+
+    return source.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q) ||
+        (i.notes ?? "").toLowerCase().includes(q)
+    );
+  }, [defaultItemLocationType, hasQuery, query, scopedItems, unassignedTools]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -317,7 +323,7 @@ export default function ItemsScreen() {
               </View>
 
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}> 
-                {query.trim()
+                {hasQuery
                   ? `${filtered.length} ${filtered.length !== 1 ? t("resultPlural") : t("resultSingular")}`
                   : `${scopedItems.length} ${scopedItems.length !== 1 ? t("itemPlural") : t("itemSingular")} ${t("tracked")}`}
               </Text>
@@ -332,7 +338,7 @@ export default function ItemsScreen() {
             </View>
           }
           ListFooterComponent={
-            unassignedTools.length > 0 ? (
+            unassignedTools.length > 0 && !hasQuery ? (
               <View style={styles.quickPeopleSection}>
                 <View style={styles.unassignedSection}>
                   <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
@@ -385,6 +391,37 @@ export default function ItemsScreen() {
             </View>
           }
           renderItem={({ item }) => {
+            if (defaultItemLocationType === "person" && hasQuery) {
+              return (
+                <TouchableOpacity
+                  style={[styles.toolCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 }]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    hapticLight();
+                    assignUnassignedToCurrentUser(item.id);
+                  }}
+                >
+                  <View style={styles.toolTouch}>
+                    <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+                      <Ionicons name="cube-outline" size={24} color={colors.primary} />
+                    </View>
+
+                    <View style={styles.toolInfo}>
+                      <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
+                      <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+                      {!!item.notes ? (
+                        <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {item.notes}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <Ionicons name="person-add-outline" size={16} color={colors.textSecondary} />
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+
             if (defaultItemLocationType !== "person") {
               return (
                 <TouchableOpacity
