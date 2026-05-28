@@ -8,8 +8,7 @@ import {
   TextInput,
   Animated,
   PanResponder,
-  LayoutRectangle,
-  View as RNView,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,26 +18,14 @@ import { useItems } from "@/context/ItemsContext";
 import { useSearch } from "@/context/SearchContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
-import { hapticLight, hapticSelection } from "@/hooks/useHaptic";
+import { hapticLight } from "@/hooks/useHaptic";
 import { FleetItem } from "@/types";
 
-const UNASSIGNED_DROP_TARGET_ID = "__unassigned_drop_target__";
-
-type PersonDropTarget = {
-  id: string;
-  label: string;
-  membershipId: string;
-};
-
-function DraggableToolRow({
+function SwipeableToolRow({
   item,
   colors,
-  isActive,
   onPress,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
-  onDragCancel,
+  onSwipeLeft,
 }: {
   item: FleetItem;
   colors: {
@@ -49,41 +36,36 @@ function DraggableToolRow({
     border: string;
     textSecondary: string;
   };
-  isActive: boolean;
   onPress: () => void;
-  onDragStart: (itemId: string) => void;
-  onDragMove: (itemId: string, x: number, y: number) => void;
-  onDragEnd: (itemId: string, x: number, y: number) => void;
-  onDragCancel: () => void;
+  onSwipeLeft: (itemId: string) => void;
 }) {
-  const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const swipeX = useRef(new Animated.Value(0)).current;
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
-      },
-      onPanResponderGrant: () => {
-        onDragStart(item.id);
+        return gestureState.dx < -10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2;
       },
       onPanResponderMove: (_evt, gestureState) => {
-        dragTranslate.setValue({ x: gestureState.dx, y: gestureState.dy });
-        onDragMove(item.id, gestureState.moveX, gestureState.moveY);
+        swipeX.setValue(Math.min(0, gestureState.dx));
       },
       onPanResponderRelease: (_evt, gestureState) => {
-        onDragEnd(item.id, gestureState.moveX, gestureState.moveY);
-        Animated.spring(dragTranslate, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          bounciness: 8,
+        if (gestureState.dx < -80) {
+          hapticLight();
+          onSwipeLeft(item.id);
+        }
+
+        Animated.spring(swipeX, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 6,
         }).start();
       },
       onPanResponderTerminate: () => {
-        onDragCancel();
-        Animated.spring(dragTranslate, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-          bounciness: 8,
+        Animated.spring(swipeX, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 6,
         }).start();
       },
     })
@@ -95,10 +77,10 @@ function DraggableToolRow({
         styles.toolCard,
         {
           backgroundColor: colors.cardBackground,
-          borderColor: isActive ? colors.primary : colors.border,
-          borderWidth: isActive ? 1.5 : 1,
-          transform: dragTranslate.getTranslateTransform(),
-          zIndex: isActive ? 2 : 1,
+          borderColor: colors.border,
+          borderWidth: 1,
+          transform: [{ translateX: swipeX }],
+          zIndex: 1,
         },
       ]}
       {...panResponder.panHandlers}
@@ -121,8 +103,8 @@ export default function ItemsScreen() {
   const router = useRouter();
   const {
     items,
-    members,
     moveItem,
+    refreshItems,
     canManageLoadout,
     defaultItemLocationType,
     currentMemberId,
@@ -134,16 +116,9 @@ export default function ItemsScreen() {
   const { t } = useLanguage();
   const slideStyle = useTabSlide(0);
 
-  const [activeItemId, setActiveItemId] = useState<string | null>(null);
-  const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const zoneLayoutsRef = useRef<Record<string, LayoutRectangle>>({});
-  const zoneRefs = useRef<Record<string, RNView | null>>({});
-  const quickPeopleRef = useRef<PersonDropTarget[]>([]);
-  const filteredRef = useRef<FleetItem[]>([]);
   const itemsRef = useRef<FleetItem[]>([]);
   const moveItemRef = useRef(moveItem);
+  const [refreshing, setRefreshing] = useState(false);
 
   const searchAnim = useSharedValue(0);
 
@@ -203,69 +178,6 @@ export default function ItemsScreen() {
     );
   }, [query, scopedItems]);
 
-  const quickPeople = useMemo<PersonDropTarget[]>(() => {
-    if (defaultItemLocationType !== "person") {
-      return [];
-    }
-
-    const seen = new Set<string>();
-    const result: PersonDropTarget[] = [];
-    const memberIdByLabel = new Map<string, string>();
-
-    members.forEach((member) => {
-      const fullName = member.fullName?.trim().toLowerCase();
-      const email = member.email?.trim().toLowerCase();
-
-      if (fullName) {
-        memberIdByLabel.set(fullName, member.id);
-      }
-
-      if (email) {
-        memberIdByLabel.set(email, member.id);
-      }
-    });
-
-    members.forEach((member) => {
-      const label = member.fullName?.trim() || member.email?.trim();
-      const normalizedLabel = (label ?? "").toLowerCase();
-      const normalizedCurrent = currentMemberName.trim().toLowerCase();
-
-      if (!label || normalizedLabel === normalizedCurrent || seen.has(member.id)) {
-        return;
-      }
-
-      seen.add(member.id);
-      result.push({ id: member.id, label, membershipId: member.id });
-    });
-
-    items
-      .filter((item) => item.locationType === "person" && item.assignedPerson)
-      .map((item) => ({
-        id: item.assignedMembershipId ?? item.assignedPerson!,
-        label: item.assignedPerson!,
-        membershipId:
-          item.assignedMembershipId
-          ?? memberIdByLabel.get(item.assignedPerson!.trim().toLowerCase())
-          ?? "",
-      }))
-      .forEach((person) => {
-        const normalizedCurrent = currentMemberName.trim().toLowerCase();
-
-        if (!person.membershipId) {
-          return;
-        }
-
-        if (person.label.trim().toLowerCase() === normalizedCurrent || seen.has(person.membershipId)) {
-          return;
-        }
-
-        seen.add(person.membershipId);
-        result.push({ ...person, id: person.membershipId });
-      });
-
-    return result;
-  }, [currentMemberName, defaultItemLocationType, items, members]);
-
   const unassignedTools = useMemo(() => {
     if (defaultItemLocationType !== "person") {
       return [] as FleetItem[];
@@ -280,47 +192,9 @@ export default function ItemsScreen() {
   }, [defaultItemLocationType, items]);
 
   useEffect(() => {
-    quickPeopleRef.current = quickPeople;
-  }, [quickPeople]);
-
-  useEffect(() => {
-    filteredRef.current = filtered;
     itemsRef.current = items;
     moveItemRef.current = moveItem;
-  }, [filtered, items, moveItem]);
-
-  const refreshDropZones = () => {
-    Object.entries(zoneRefs.current).forEach(([targetId, node]) => {
-      if (!node) return;
-      node.measureInWindow((x, y, width, height) => {
-        zoneLayoutsRef.current[targetId] = { x, y, width, height };
-      });
-    });
-  };
-
-  const getTargetAtPoint = (x: number, y: number): string | null => {
-    for (const [targetId, layout] of Object.entries(zoneLayoutsRef.current)) {
-      const withinX = x >= layout.x && x <= layout.x + layout.width;
-      const withinY = y >= layout.y && y <= layout.y + layout.height;
-      if (withinX && withinY) {
-        return targetId;
-      }
-    }
-
-    return null;
-  };
-
-  const moveItemToPerson = (itemId: string, targetId: string) => {
-    const target = quickPeopleRef.current.find((candidate) => candidate.id === targetId);
-    const item = filteredRef.current.find((candidate) => candidate.id === itemId) ?? itemsRef.current.find((candidate) => candidate.id === itemId);
-
-    if (!target || !item) {
-      return;
-    }
-
-    moveItemRef.current(item.id, "person", target.label, undefined, target.membershipId);
-    setActiveItemId(null);
-  };
+  }, [items, moveItem]);
 
   const moveItemToUnassigned = (itemId: string) => {
     const item = itemsRef.current.find((candidate) => candidate.id === itemId);
@@ -329,7 +203,6 @@ export default function ItemsScreen() {
     }
 
     moveItemRef.current(item.id, "person", undefined, undefined, undefined);
-    setActiveItemId(null);
   };
 
   const assignUnassignedToCurrentUser = (itemId: string) => {
@@ -342,35 +215,24 @@ export default function ItemsScreen() {
     moveItemRef.current(item.id, "person", fallbackName, undefined, currentMemberId || undefined);
   };
 
-  const handleDragStart = (itemId: string) => {
-    setActiveItemId(itemId);
-    setIsDragging(true);
-    refreshDropZones();
+  const handleRefresh = () => {
+    setRefreshing(true);
+    refreshItems();
   };
 
-  const handleDragMove = (itemId: string, x: number, y: number) => {
-    setActiveItemId(itemId);
-    setHoveredTargetId(getTargetAtPoint(x, y));
-  };
-
-  const handleDragEnd = (itemId: string, x: number, y: number) => {
-    const matchedTargetId = getTargetAtPoint(x, y);
-    setHoveredTargetId(null);
-    setIsDragging(false);
-
-    if (matchedTargetId) {
-      hapticSelection();
-      if (matchedTargetId === UNASSIGNED_DROP_TARGET_ID) {
-        moveItemToUnassigned(itemId);
-        return;
-      }
-
-      moveItemToPerson(itemId, matchedTargetId);
+  useEffect(() => {
+    if (!refreshing) {
       return;
     }
 
-    setActiveItemId(itemId);
-  };
+    const timeoutId = setTimeout(() => {
+      setRefreshing(false);
+    }, 1200);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [refreshing, items]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -401,7 +263,14 @@ export default function ItemsScreen() {
           data={filtered}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          scrollEnabled={!isDragging}
+          scrollEnabled
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
           ListHeaderComponent={
             <View>
               <View style={styles.titleRow}>
@@ -430,145 +299,40 @@ export default function ItemsScreen() {
                 <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("toolsAssignedToYouHint")}</Text>
               ) : null}
               {defaultItemLocationType === "person" ? (
-                <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("moveQuickHintPeople")}</Text>
+                <Text style={[styles.userHint, { color: colors.textSecondary }]}>Svep ett verktyg till vanster for att markera det som olistat.</Text>
               ) : null}
 
             </View>
           }
           ListFooterComponent={
-            quickPeople.length > 0 || unassignedTools.length > 0 ? (
+            unassignedTools.length > 0 ? (
               <View style={styles.quickPeopleSection}>
-                {quickPeople.length > 0 ? (
-                  <>
-                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("people")}</Text>
-                    <View style={styles.quickPeopleWrap}>
-                      {quickPeople.map((person) => (
-                        <TouchableOpacity
-                          key={person.id}
-                          ref={(node) => {
-                            zoneRefs.current[person.id] = node;
-                          }}
-                          onLayout={() => {
-                            const node = zoneRefs.current[person.id];
-                            if (!node) return;
-                            node.measureInWindow((x, y, width, height) => {
-                              zoneLayoutsRef.current[person.id] = { x, y, width, height };
-                            });
-                          }}
-                          style={[
-                            styles.quickPersonCard,
-                            {
-                              backgroundColor: hoveredTargetId === person.id ? colors.primary : colors.cardBackground,
-                              borderColor: hoveredTargetId === person.id ? colors.primary : colors.border,
-                            },
-                          ]}
-                          activeOpacity={0.75}
-                          onPress={() => {
-                            if (activeItemId) {
-                              hapticSelection();
-                              moveItemToPerson(activeItemId, person.id);
-                              return;
-                            }
-
-                            router.push(`/person/${encodeURIComponent(person.label)}`);
-                          }}
-                        >
-                          <Ionicons
-                            name="person-outline"
-                            size={20}
-                            color={hoveredTargetId === person.id ? colors.white : colors.primary}
-                          />
-                          <Text
-                            style={[
-                              styles.quickPersonCardText,
-                              { color: hoveredTargetId === person.id ? colors.white : colors.text },
-                            ]}
-                          >
-                            {person.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </>
-                ) : null}
-                {activeItemId ? (
-                  <Text style={[styles.selectionHint, { color: colors.textSecondary }]}> 
-                    {t("moveItemTitle")}: {filtered.find((i) => i.id === activeItemId)?.name ?? ""}
-                  </Text>
-                ) : null}
-
-                {unassignedTools.length > 0 ? (
-                  <View style={styles.unassignedSection}>
-                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
-                    <TouchableOpacity
-                      ref={(node) => {
-                        zoneRefs.current[UNASSIGNED_DROP_TARGET_ID] = node;
-                      }}
-                      onLayout={() => {
-                        const node = zoneRefs.current[UNASSIGNED_DROP_TARGET_ID];
-                        if (!node) return;
-                        node.measureInWindow((x, y, width, height) => {
-                          zoneLayoutsRef.current[UNASSIGNED_DROP_TARGET_ID] = { x, y, width, height };
-                        });
-                      }}
-                      style={[
-                        styles.unassignedDropZone,
-                        {
-                          backgroundColor:
-                            hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.primary : colors.cardBackground,
-                          borderColor:
-                            hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.primary : colors.border,
-                        },
-                      ]}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        if (!activeItemId) {
-                          return;
-                        }
-
-                        hapticSelection();
-                        moveItemToUnassigned(activeItemId);
-                      }}
-                    >
-                      <Ionicons
-                        name="archive-outline"
-                        size={18}
-                        color={hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.white : colors.primary}
-                      />
-                      <Text
+                <View style={styles.unassignedSection}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
+                  <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("tapUnassignedToAssignYou")}</Text>
+                  <View style={styles.quickPeopleWrap}>
+                    {unassignedTools.map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
                         style={[
-                          styles.unassignedDropZoneText,
-                          { color: hoveredTargetId === UNASSIGNED_DROP_TARGET_ID ? colors.white : colors.text },
+                          styles.quickPersonChip,
+                          {
+                            backgroundColor: colors.cardBackground,
+                            borderColor: colors.border,
+                          },
                         ]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          hapticLight();
+                          assignUnassignedToCurrentUser(item.id);
+                        }}
                       >
-                        Dra hit for att markera verktyg som olistat
-                      </Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("tapUnassignedToAssignYou")}</Text>
-                    <View style={styles.quickPeopleWrap}>
-                      {unassignedTools.map((item) => (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[
-                            styles.quickPersonChip,
-                            {
-                              backgroundColor: colors.cardBackground,
-                              borderColor: colors.border,
-                            },
-                          ]}
-                          activeOpacity={0.8}
-                          onPress={() => {
-                            hapticLight();
-                            assignUnassignedToCurrentUser(item.id);
-                          }}
-                        >
-                          <Ionicons name="cube-outline" size={16} color={colors.primary} />
-                          <Text style={[styles.quickPersonText, { color: colors.text }]}>{item.name}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                        <Ionicons name="cube-outline" size={16} color={colors.primary} />
+                        <Text style={[styles.quickPersonText, { color: colors.text }]}>{item.name}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                ) : null}
+                </View>
               </View>
             ) : null
           }
@@ -609,21 +373,14 @@ export default function ItemsScreen() {
             }
 
             return (
-              <DraggableToolRow
+              <SwipeableToolRow
                 item={item}
                 colors={colors}
-                isActive={activeItemId === item.id}
                 onPress={() => {
                   hapticLight();
-                  setActiveItemId((prev) => (prev === item.id ? null : item.id));
+                  router.push(`/move/${item.id}`);
                 }}
-                onDragStart={handleDragStart}
-                onDragMove={handleDragMove}
-                onDragEnd={handleDragEnd}
-                onDragCancel={() => {
-                  setHoveredTargetId(null);
-                  setIsDragging(false);
-                }}
+                onSwipeLeft={moveItemToUnassigned}
               />
             );
           }}
@@ -731,25 +488,6 @@ const styles = StyleSheet.create({
   quickPeopleSection: {
     marginTop: 6,
   },
-  quickPersonCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  quickPersonCardText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
   quickPersonChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -769,26 +507,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  selectionHint: {
-    marginTop: 10,
-    fontSize: 12,
-  },
   unassignedSection: {
     marginTop: 12,
-  },
-  unassignedDropZone: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  unassignedDropZoneText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
   },
 });

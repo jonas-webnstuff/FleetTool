@@ -92,6 +92,7 @@ type ItemsContextType = {
   setCategoryMode: (mode: "local" | "central") => void;
   setVehicleMode: (mode: "local" | "central") => void;
   setItemMode: (mode: "local" | "central") => void;
+  refreshItems: () => void;
 };
 
 function safeParseJson<T>(value: string | null, fallback: T): T {
@@ -1395,6 +1396,10 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     setItemModeState(mode);
   };
 
+  const refreshItems = () => {
+    setItemsReloadTick((prev) => prev + 1);
+  };
+
   return (
     <ItemsContext.Provider
       value={{
@@ -1429,6 +1434,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         setCategoryMode,
         setVehicleMode,
         setItemMode,
+        refreshItems,
       }}
     >
       {children}
