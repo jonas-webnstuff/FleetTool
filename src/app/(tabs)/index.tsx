@@ -93,6 +93,11 @@ function SwipeableToolRow({
         <View style={styles.toolInfo}>
           <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
           <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+          {!!item.notes ? (
+            <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.notes}
+            </Text>
+          ) : null}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -328,7 +333,19 @@ export default function ItemsScreen() {
                         }}
                       >
                         <Ionicons name="cube-outline" size={16} color={colors.primary} />
-                        <Text style={[styles.quickPersonText, { color: colors.text }]}>{item.name}</Text>
+                        <View style={styles.quickPersonMeta}>
+                          <Text style={[styles.quickPersonText, { color: colors.text }]} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          {!!item.notes ? (
+                            <Text
+                              style={[styles.quickPersonNotes, { color: colors.textSecondary }]}
+                              numberOfLines={1}
+                            >
+                              {item.notes}
+                            </Text>
+                          ) : null}
+                        </View>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -364,6 +381,11 @@ export default function ItemsScreen() {
                     <View style={styles.toolInfo}>
                       <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
                       <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+                      {!!item.notes ? (
+                        <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {item.notes}
+                        </Text>
+                      ) : null}
                     </View>
 
                     <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
@@ -482,6 +504,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  toolNotes: {
+    fontSize: 12,
+    marginTop: 2,
+  },
   quickPeopleWrap: {
     marginTop: 4,
   },
@@ -503,9 +529,16 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
+  quickPersonMeta: {
+    flex: 1,
+  },
   quickPersonText: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  quickPersonNotes: {
+    fontSize: 12,
+    marginTop: 2,
   },
   unassignedSection: {
     marginTop: 12,

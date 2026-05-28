@@ -96,6 +96,11 @@ export default function ItemCard({
             </View>
           </View>
           <Text style={[styles.category, { color: colors.textSecondary }]}>{item.category}</Text>
+          {!!item.notes ? (
+            <Text style={[styles.notes, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.notes}
+            </Text>
+          ) : null}
         </View>
         {showQuickMoveButton && item.locationType === "vehicle" && item.assignedVehicle ? (
           <TouchableOpacity
@@ -177,6 +182,10 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 13,
     marginTop: 4,
+  },
+  notes: {
+    fontSize: 12,
+    marginTop: 2,
   },
   quickMoveButton: {
     width: 30,

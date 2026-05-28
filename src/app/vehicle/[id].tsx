@@ -90,6 +90,11 @@ function DraggableToolRow({
       <View style={styles.toolMeta}>
         <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
         <Text style={[styles.toolSub, { color: colors.textSecondary }]}>{item.category}</Text>
+        {!!item.notes ? (
+          <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+            {item.notes}
+          </Text>
+        ) : null}
       </View>
 
     </Animated.View>
@@ -330,6 +335,10 @@ const styles = StyleSheet.create({
   },
   toolSub: {
     fontSize: 13,
+    marginTop: 2,
+  },
+  toolNotes: {
+    fontSize: 12,
     marginTop: 2,
   },
   dropZoneList: {

@@ -61,5 +61,18 @@ target 'FleetTool' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Xcode 16 / Swift concurrency checks can surface warnings-as-errors in Expo pod sources
+    # (for example EXApplication) during Archive/TestFlight builds.
+    installer.pods_project.targets.each do |target|
+      is_expo_pod = target.name.start_with?('EX') || target.name.start_with?('Expo')
+      next unless is_expo_pod
+
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+        build_config.build_settings['SWIFT_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+        build_config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+      end
+    end
   end
 end
