@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 type PendingClerkNameSync = {
   fullName: string;
@@ -8,11 +8,11 @@ type PendingClerkNameSync = {
 const PENDING_CLERK_NAME_SYNC_KEY = "fleettool_pending_clerk_name_sync";
 
 export async function setPendingClerkNameSync(value: PendingClerkNameSync) {
-  await AsyncStorage.setItem(PENDING_CLERK_NAME_SYNC_KEY, JSON.stringify(value));
+  await SecureStore.setItemAsync(PENDING_CLERK_NAME_SYNC_KEY, JSON.stringify(value));
 }
 
 export async function getPendingClerkNameSync(): Promise<PendingClerkNameSync | null> {
-  const raw = await AsyncStorage.getItem(PENDING_CLERK_NAME_SYNC_KEY);
+  const raw = await SecureStore.getItemAsync(PENDING_CLERK_NAME_SYNC_KEY);
   if (!raw) {
     return null;
   }
@@ -29,10 +29,10 @@ export async function getPendingClerkNameSync(): Promise<PendingClerkNameSync | 
     // Ignore malformed storage and clear it below.
   }
 
-  await AsyncStorage.removeItem(PENDING_CLERK_NAME_SYNC_KEY);
+  await SecureStore.deleteItemAsync(PENDING_CLERK_NAME_SYNC_KEY);
   return null;
 }
 
 export async function clearPendingClerkNameSync() {
-  await AsyncStorage.removeItem(PENDING_CLERK_NAME_SYNC_KEY);
+  await SecureStore.deleteItemAsync(PENDING_CLERK_NAME_SYNC_KEY);
 }

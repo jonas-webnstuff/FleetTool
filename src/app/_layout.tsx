@@ -13,7 +13,7 @@ import { ThemeProvider as AppThemeProvider, useTheme } from "@/context/ThemeCont
 import { LanguageProvider } from "@/context/LanguageContext";
 import { clearPendingClerkNameSync, getPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
-import { setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
+import { clearMembershipLinkDebug, setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
 import { decodeJwtHeader, decodeJwtPayload, getSupabaseTokenWithFallback, useSupabase } from "@/lib/supabase";
 
 SplashScreen.preventAutoHideAsync();
@@ -78,6 +78,13 @@ function AppStack() {
     }),
     [mode, colors]
   );
+
+  useEffect(() => {
+    const debugEnabled = __DEV__ || process.env.EXPO_PUBLIC_ENABLE_MEMBERSHIP_DEBUG === "1";
+    if (!debugEnabled) {
+      void clearMembershipLinkDebug();
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

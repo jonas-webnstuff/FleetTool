@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 type PendingMembershipLink = {
   email: string;
@@ -7,11 +7,11 @@ type PendingMembershipLink = {
 const PENDING_MEMBERSHIP_LINK_KEY = "fleettool_pending_membership_link";
 
 export async function setPendingMembershipLink(value: PendingMembershipLink) {
-  await AsyncStorage.setItem(PENDING_MEMBERSHIP_LINK_KEY, JSON.stringify(value));
+  await SecureStore.setItemAsync(PENDING_MEMBERSHIP_LINK_KEY, JSON.stringify(value));
 }
 
 export async function getPendingMembershipLink(): Promise<PendingMembershipLink | null> {
-  const raw = await AsyncStorage.getItem(PENDING_MEMBERSHIP_LINK_KEY);
+  const raw = await SecureStore.getItemAsync(PENDING_MEMBERSHIP_LINK_KEY);
   if (!raw) {
     return null;
   }
@@ -25,10 +25,10 @@ export async function getPendingMembershipLink(): Promise<PendingMembershipLink 
     // Ignore malformed storage and clear it below.
   }
 
-  await AsyncStorage.removeItem(PENDING_MEMBERSHIP_LINK_KEY);
+  await SecureStore.deleteItemAsync(PENDING_MEMBERSHIP_LINK_KEY);
   return null;
 }
 
 export async function clearPendingMembershipLink() {
-  await AsyncStorage.removeItem(PENDING_MEMBERSHIP_LINK_KEY);
+  await SecureStore.deleteItemAsync(PENDING_MEMBERSHIP_LINK_KEY);
 }
