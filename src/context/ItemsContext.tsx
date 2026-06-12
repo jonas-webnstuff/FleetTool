@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode, useM
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Alert } from "react-native";
-import { ActivityEvent, FleetItem, Member, Vehicle } from "@/types";
+import { ActivityEvent, FleetItem, Member, MembershipRole, Vehicle } from "@/types";
 import { useSupabase } from "@/lib/supabase";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
 
@@ -23,12 +23,12 @@ const DEFAULT_VEHICLES: Vehicle[] = [
 ];
 
 type CategoryRow = { id: string; name: string };
-type MembershipRole = "owner" | "admin" | "manager" | "field_user";
 type CompanyPeopleRpcRow = {
   membership_id: string;
   full_name: string | null;
   email: string | null;
   item_count: number | null;
+  role?: MembershipRole | null;
 };
 type MembershipRpcRow = {
   id: string;
@@ -61,6 +61,7 @@ type ItemsContextType = {
   activityLog: ActivityEvent[];
   categories: string[];
   members: Member[];
+  assignableMembers: Member[];
   categoryMode: "local" | "central";
   vehicleMode: "local" | "central";
   itemMode: "local" | "central";
@@ -124,6 +125,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const [categoryMode, setCategoryModeState] = useState<"local" | "central">("local");
   const [vehicleMode, setVehicleModeState] = useState<"local" | "central">("local");
   const [itemMode, setItemModeState] = useState<"local" | "central">("local");
+  const [allowAdminAssignment, setAllowAdminAssignmentState] = useState(true);
+  const [allowManagerAssignment, setAllowManagerAssignmentState] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<MembershipRole | null>(null);
   const [currentMembership, setCurrentMembership] = useState<MembershipRpcRow | null>(null);
   const [defaultItemLocationType, setDefaultItemLocationType] = useState<"person" | "vehicle">("person");
@@ -146,6 +149,20 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const canManageLoadout = !isCentralFieldUser;
   const canAssignToPeople = !isCentralFieldUser;
   const canMoveBetweenVehiclesOnly = isCentralFieldUser && defaultItemLocationType === "vehicle";
+  const assignableMembers = useMemo(
+    () => members.filter((member) => {
+      if (!allowAdminAssignment && (member.role === "admin" || member.role === "owner")) {
+        return false;
+      }
+
+      if (!allowManagerAssignment && member.role === "manager") {
+        return false;
+      }
+
+      return true;
+    }),
+    [allowAdminAssignment, allowManagerAssignment, members]
+  );
   const currentMemberId = useMemo(() => {
     if (effectiveItemMode !== "central" || !userId) {
       return "";
@@ -469,12 +486,30 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       const { data: peopleData, error: peopleError } = await supabase.rpc("get_company_people_with_items");
 
       if (!cancelled && !peopleError && Array.isArray(peopleData)) {
+        const rolesByMembershipId = new Map<string, MembershipRole>();
+
+        const { data: roleRows } = await supabase
+          .from("company_memberships")
+          .select("id, role")
+          .eq("company_id", companyId)
+          .eq("status", "active");
+
+        (roleRows ?? []).forEach((row) => {
+          const id = (row.id as string | null) ?? null;
+          const role = (row.role as MembershipRole | null) ?? null;
+
+          if (id && role) {
+            rolesByMembershipId.set(id, role);
+          }
+        });
+
         const mapped = (peopleData as CompanyPeopleRpcRow[])
           .map((row) => ({
             id: row.membership_id,
             fullName: row.full_name ?? row.email ?? row.membership_id,
             email: row.email ?? "",
             clerkUserId: undefined,
+            role: row.role ?? rolesByMembershipId.get(row.membership_id),
           }))
           .sort((a, b) => a.fullName.localeCompare(b.fullName, "sv"));
 
@@ -486,7 +521,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       // Fallback for environments where migration is not yet applied.
       const { data, error } = await supabase
         .from("company_memberships")
-        .select("id, full_name, email, clerk_user_id")
+        .select("id, full_name, email, clerk_user_id, role")
         .eq("company_id", companyId)
         .eq("status", "active")
         .order("full_name");
@@ -498,6 +533,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           fullName: (m.full_name as string | null) ?? (m.email as string),
           email: m.email as string,
           clerkUserId: (m.clerk_user_id as string | null) ?? undefined,
+          role: (m.role as MembershipRole | null) ?? undefined,
         }));
         membersRef.current = mapped;
         setMembers(mapped);
@@ -553,8 +589,20 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                 fullName: membership.full_name ?? membership.email ?? user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? userId,
                 email: membership.email ?? user?.primaryEmailAddress?.emailAddress ?? "",
                 clerkUserId: membership.clerk_user_id ?? userId,
+                role: membership.role ?? undefined,
               },
             ];
+          } else {
+            next = prev.map((member) => {
+              if (member.id !== membership.id || !membership.role || member.role === membership.role) {
+                return member;
+              }
+
+              return {
+                ...member,
+                role: membership.role,
+              };
+            });
           }
 
           membersRef.current = next;
@@ -606,24 +654,47 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (effectiveItemMode !== "central" || !companyId) {
       setDefaultItemLocationType("person");
+      setAllowAdminAssignmentState(true);
+      setAllowManagerAssignmentState(true);
       return;
     }
 
     let cancelled = false;
 
-    void supabase
-      .from("companies")
-      .select("default_item_assignment_type")
-      .eq("id", companyId)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled || error) {
-          return;
+    void (async () => {
+      try {
+        // Get assignment mode from RPC (respects admin setting)
+        const { data: modeData, error: modeError } = await supabase.rpc("get_company_assignment_mode");
+        if (!cancelled && !modeError && modeData) {
+          const nextDefault = modeData === "vehicle" ? "vehicle" : "person";
+          setDefaultItemLocationType(nextDefault);
+        } else if (!cancelled) {
+          setDefaultItemLocationType("person");
         }
 
-        const nextDefault = data?.default_item_assignment_type === "vehicle" ? "vehicle" : "person";
-        setDefaultItemLocationType(nextDefault);
-      });
+        // Get assignment policies from companies table
+        const { data: companyData, error: companyError } = await supabase
+          .from("companies")
+          .select("allow_admin_assignment, allow_manager_assignment")
+          .eq("id", companyId)
+          .maybeSingle();
+
+        if (!cancelled && !companyError && companyData) {
+          setAllowAdminAssignmentState(companyData.allow_admin_assignment !== false);
+          setAllowManagerAssignmentState(companyData.allow_manager_assignment !== false);
+        } else if (!cancelled) {
+          setAllowAdminAssignmentState(true);
+          setAllowManagerAssignmentState(true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("Failed to load company assignment settings", error);
+          setDefaultItemLocationType("person");
+          setAllowAdminAssignmentState(true);
+          setAllowManagerAssignmentState(true);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -1409,6 +1480,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         activityLog,
         categories,
         members,
+        assignableMembers,
         categoryMode: effectiveCategoryMode,
         vehicleMode: effectiveVehicleMode,
         itemMode: effectiveItemMode,
