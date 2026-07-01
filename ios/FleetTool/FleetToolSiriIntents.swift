@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 @available(iOS 16.0, *)
 import AppIntents
@@ -22,6 +23,28 @@ struct FleetToolMoveToolIntent: AppIntent {
   @Parameter(title: "Tool Name")
   var itemName: String?
 
+  private func makeDeepLink() -> URL? {
+    var components = URLComponents()
+    components.scheme = "fleettool"
+    components.host = "siri"
+    components.path = "/move"
+
+    let trimmedId = itemId?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedName = itemName?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if let id = trimmedId, !id.isEmpty {
+      components.queryItems = [URLQueryItem(name: "itemId", value: id)]
+      return components.url
+    }
+
+    if let name = trimmedName, !name.isEmpty {
+      components.queryItems = [URLQueryItem(name: "itemName", value: name)]
+      return components.url
+    }
+
+    return nil
+  }
+
   func perform() async throws -> some IntentResult & ProvidesDialog {
     guard FleetToolIntentFlags.nativeSiriEnabled else {
       return .result(dialog: "Native Siri move intent is disabled in this build.")
@@ -34,7 +57,14 @@ struct FleetToolMoveToolIntent: AppIntent {
       return .result(dialog: "Specify a tool id or tool name.")
     }
 
-    // Phase B skeleton: deep-link execution from native intent is intentionally deferred.
+    guard let deepLink = makeDeepLink() else {
+      return .result(dialog: "Could not create a valid FleetTool link.")
+    }
+
+    await MainActor.run {
+      UIApplication.shared.open(deepLink, options: [:], completionHandler: nil)
+    }
+
     return .result(dialog: "Opening FleetTool. Confirm move in app.")
   }
 }
