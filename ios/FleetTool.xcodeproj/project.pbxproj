@@ -15,6 +15,7 @@
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4859E02D3CF2C11F329F899F /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B6A7D61ACB7282E24208D24 /* ExpoModulesProvider.swift */; };
 		6433C9C916AAE0357D11D22D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 19493573CC6985421B6D1EF6 /* PrivacyInfo.xcprivacy */; };
+		6EA1A2B3C4D5E6F708091011 /* FleetToolSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA1A2B3C4D5E6F708091010 /* FleetToolSiriIntents.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
@@ -27,6 +28,7 @@
 		2DC1F321CD348FF9F1AAE453 /* libPods-FleetTool.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FleetTool.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		40481A7FD926425EAC425B53 /* Roboto_400Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Roboto_400Regular.ttf; path = "../node_modules/@expo-google-fonts/roboto/400Regular/Roboto_400Regular.ttf"; sourceTree = "<group>"; };
 		6B6A7D61ACB7282E24208D24 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-FleetTool/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		6EA1A2B3C4D5E6F708091010 /* FleetToolSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FleetToolSiriIntents.swift; path = FleetTool/FleetToolSiriIntents.swift; sourceTree = "<group>"; };
 		71C40734567A4C25BFA7D8CA /* Roboto_500Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Roboto_500Medium.ttf; path = "../node_modules/@expo-google-fonts/roboto/500Medium/Roboto_500Medium.ttf"; sourceTree = "<group>"; };
 		8A7BFC7DBE2978826A3E9C11 /* Pods-FleetTool.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FleetTool.debug.xcconfig"; path = "Target Support Files/Pods-FleetTool/Pods-FleetTool.debug.xcconfig"; sourceTree = "<group>"; };
 		A2B4FED79F63477BA12A3A3D /* Roboto_700Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Roboto_700Bold.ttf; path = "../node_modules/@expo-google-fonts/roboto/700Bold/Roboto_700Bold.ttf"; sourceTree = "<group>"; };
@@ -64,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				6EA1A2B3C4D5E6F708091010 /* FleetToolSiriIntents.swift */,
 				F11748442D0722820044C1D9 /* FleetTool-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -368,6 +371,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				6EA1A2B3C4D5E6F708091011 /* FleetToolSiriIntents.swift in Sources */,
 				4859E02D3CF2C11F329F899F /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
