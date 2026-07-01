@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -92,6 +92,14 @@ export default function ItemDetailScreen() {
     }
   };
 
+  const handleOpenSiriUrl = async () => {
+    try {
+      await Linking.openURL(siriMoveUrl);
+    } catch {
+      Alert.alert(t("siriMoveUrlTitle"), t("siriMoveUrlOpenFailed"));
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title={item.name} />
@@ -164,6 +172,16 @@ export default function ItemDetailScreen() {
           >
             <Ionicons name="share-social-outline" size={16} color={colors.primary} />
             <Text style={[styles.siriActionText, { color: colors.primary }]}>{t("siriMoveUrlShare")}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.siriActionButton, { borderColor: colors.border }]}
+            activeOpacity={0.8}
+            onPress={() => {
+              void handleOpenSiriUrl();
+            }}
+          >
+            <Ionicons name="open-outline" size={16} color={colors.primary} />
+            <Text style={[styles.siriActionText, { color: colors.primary }]}>{t("siriMoveUrlOpen")}</Text>
           </TouchableOpacity>
         </View>
 

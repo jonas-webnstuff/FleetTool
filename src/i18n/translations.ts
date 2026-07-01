@@ -229,6 +229,8 @@ export const translations = {
     siriMoveUrlHelp: "Use this URL in an iOS Shortcut to open move for this tool.",
     siriMoveUrlMessage: "Siri shortcut URL for {name}",
     siriMoveUrlShare: "Share URL",
+    siriMoveUrlOpen: "Test URL now",
+    siriMoveUrlOpenFailed: "Could not open the Siri URL on this device.",
 
     // Tools tab
     swipeLeftToUnassign: "Swipe a tool left to mark it as unassigned.",
@@ -461,6 +463,8 @@ export const translations = {
     siriMoveUrlHelp: "Använd denna URL i en iOS-genväg för att öppna flytt för detta verktyg.",
     siriMoveUrlMessage: "Siri-genvägs-URL för {name}",
     siriMoveUrlShare: "Dela URL",
+    siriMoveUrlOpen: "Testa URL nu",
+    siriMoveUrlOpenFailed: "Kunde inte öppna Siri-URL:en på den här enheten.",
 
     // Tools tab
     swipeLeftToUnassign: "Svep ett verktyg till vänster för att markera det som olistat.",
