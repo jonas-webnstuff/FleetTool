@@ -218,6 +218,9 @@ export const translations = {
     signOutFailedBody: "Sign-out partially failed ({message}). Local session was cleared ({fallback}).",
     siriShortcutTitle: "Siri shortcut",
     siriShortcutDescription: "Open move flow from Siri/Shortcuts",
+    siriNativeStatusTitle: "Native Siri intent",
+    siriNativeStatusEnabled: "Enabled in this build",
+    siriNativeStatusDisabled: "Disabled in this build",
     siriShortcutSetupBody:
       "Create an iOS Shortcut with action Open URL.\n\nUse one of these URLs:\n• fleettool://siri/move?itemId=<ITEM_ID>\n• fleettool://siri/move?itemName=<ITEM_NAME>\n\nTip: encode spaces in names, for example Drill%20Kit.",
     siriPreparingMove: "Preparing move from Siri...",
@@ -452,6 +455,9 @@ export const translations = {
     signOutFailedBody: "Utloggning misslyckades delvis ({message}). Lokal session rensades ({fallback}).",
     siriShortcutTitle: "Siri-genväg",
     siriShortcutDescription: "Öppna flyttflödet via Siri/Genvägar",
+    siriNativeStatusTitle: "Native Siri-intent",
+    siriNativeStatusEnabled: "Aktiverad i denna build",
+    siriNativeStatusDisabled: "Inaktiverad i denna build",
     siriShortcutSetupBody:
       "Skapa en iOS-genväg med åtgärden Öppna URL.\n\nAnvänd en av dessa URL:er:\n• fleettool://siri/move?itemId=<ITEM_ID>\n• fleettool://siri/move?itemName=<ITEM_NAME>\n\nTips: koda mellanslag i namn, till exempel Drill%20Kit.",
     siriPreparingMove: "Förbereder flytt från Siri...",

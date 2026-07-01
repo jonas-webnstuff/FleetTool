@@ -1,6 +1,7 @@
 import { Alert, View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
@@ -26,6 +27,11 @@ export default function SettingsScreen() {
   const [resolvedCompanyId, setResolvedCompanyId] = useState<string | null>(null);
   const [resolvedCompanyName, setResolvedCompanyName] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const nativeSiriEnabled = Boolean(
+    (Constants.expoConfig?.ios as { infoPlist?: Record<string, unknown> } | undefined)?.infoPlist?.FT_ENABLE_NATIVE_SIRI_INTENTS
+    ?? (Constants.platform?.ios as { infoPlist?: Record<string, unknown> } | undefined)?.infoPlist?.FT_ENABLE_NATIVE_SIRI_INTENTS
+  );
 
   const describeError = (value: unknown): string => {
     if (value instanceof Error) {
@@ -234,6 +240,16 @@ export default function SettingsScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={styles.row}>
+          <Ionicons name="hardware-chip-outline" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("siriNativeStatusTitle")}</Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>
+              {nativeSiriEnabled ? t("siriNativeStatusEnabled") : t("siriNativeStatusDisabled")}
+            </Text>
+          </View>
+        </View>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <TouchableOpacity
           style={[styles.row, isSigningOut && { opacity: 0.6 }]}
