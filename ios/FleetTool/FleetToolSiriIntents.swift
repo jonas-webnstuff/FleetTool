@@ -1,7 +1,5 @@
 import Foundation
 import UIKit
-
-@available(iOS 16.0, *)
 import AppIntents
 
 @available(iOS 16.0, *)
@@ -72,16 +70,14 @@ struct FleetToolMoveToolIntent: AppIntent {
 @available(iOS 16.0, *)
 struct FleetToolShortcutsProvider: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
-    [
-      AppShortcut(
-        intent: FleetToolMoveToolIntent(),
-        phrases: [
-          "Move tool in \(.applicationName)",
-          "Move a tool with \(.applicationName)",
-        ],
-        shortTitle: "Move Tool",
-        systemImageName: "arrow.left.arrow.right"
-      ),
-    ]
+    AppShortcut(
+      intent: FleetToolMoveToolIntent(),
+      phrases: [
+        "Move tool in \(.applicationName)",
+        "Move a tool with \(.applicationName)",
+      ],
+      shortTitle: "Move Tool",
+      systemImageName: "arrow.left.arrow.right"
+    )
   }
 }
