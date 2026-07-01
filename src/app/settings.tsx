@@ -155,8 +155,8 @@ export default function SettingsScreen() {
 
         await clearLocalAuthArtifacts();
         Alert.alert(
-          "Utloggning",
-          `Utloggning misslyckades delvis (${message}). Lokal session rensades (${fallbackMessage}).`
+          t("signOutFailedTitle"),
+          t("signOutFailedBody", { message, fallback: fallbackMessage })
         );
         goToSignIn();
       }
@@ -216,6 +216,25 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <TouchableOpacity
+          style={styles.row}
+          activeOpacity={0.7}
+          onPress={() => {
+            Alert.alert(
+              t("siriShortcutTitle"),
+              t("siriShortcutSetupBody")
+            );
+          }}
+        >
+          <Ionicons name="mic-outline" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("siriShortcutTitle")}</Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>{t("siriShortcutDescription")}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <TouchableOpacity
           style={[styles.row, isSigningOut && { opacity: 0.6 }]}
           activeOpacity={0.7}
@@ -226,22 +245,22 @@ export default function SettingsScreen() {
         >
           <Ionicons name="log-out-outline" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>{isSigningOut ? "Loggar ut..." : "Logga ut"}</Text>
-            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>Avsluta sessionen på den här enheten</Text>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{isSigningOut ? t("signingOut") : t("signOut")}</Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>{t("signOutSubLabel")}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
 
-      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>KONTO</Text>
+      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{t("sectionAccount")}</Text>
       <View style={[styles.section, { backgroundColor: colors.cardBackground }]}> 
         <View style={styles.row}>
           <Ionicons name="person-circle-outline" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>Inloggad användare</Text>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("signedInUser")}</Text>
             <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>
-              {primaryName ?? primaryEmail ?? "Ingen användare"}
+              {primaryName ?? primaryEmail ?? t("noUser")}
             </Text>
           </View>
         </View>
@@ -249,9 +268,9 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Ionicons name="business-outline" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.rowLabel, { color: colors.text }]}>Företag</Text>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("company")}</Text>
             <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>
-              {resolvedCompanyName ?? "Ingen företagskoppling hittad"}
+              {resolvedCompanyName ?? t("noCompanyLinked")}
             </Text>
           </View>
         </View>

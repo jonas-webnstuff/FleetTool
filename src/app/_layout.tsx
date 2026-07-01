@@ -360,6 +360,7 @@ function AppStack() {
           <Stack.Screen name="add-item" options={{ headerShown: false }} />
           <Stack.Screen name="item/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="move/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="siri/move" options={{ headerShown: false }} />
           <Stack.Screen name="person/[name]" options={{ headerShown: false }} />
           <Stack.Screen name="vehicle/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="vehicle-loadout/[id]" options={{ headerShown: false }} />

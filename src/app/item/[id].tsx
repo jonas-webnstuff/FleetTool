@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +19,7 @@ import ScreenHeader from "@/components/ScreenHeader";
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, returnedItems, returnItem, vehicles, canManageLoadout } = useItems();
+  const { items, returnedItems, returnItem, vehicles, canManageLoadout, currentMemberId, currentUserRole } = useItems();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -50,6 +50,11 @@ export default function ItemDetailScreen() {
   }
 
   const iconName = categoryIcons[item.category] ?? "cube-outline";
+  const canReturnOwnItem =
+    !canManageLoadout
+    && currentUserRole === "field_user"
+    && item.locationType === "person"
+    && item.assignedMembershipId === currentMemberId;
 
   const locationLabel = () => {
     if (item.locationType === "vehicle") {
@@ -72,6 +77,19 @@ export default function ItemDetailScreen() {
         },
       },
     ]);
+  };
+
+  const siriMoveUrl = `fleettool://siri/move?itemId=${encodeURIComponent(item.id)}`;
+
+  const handleShareSiriUrl = async () => {
+    try {
+      await Share.share({
+        title: t("siriMoveUrlTitle"),
+        message: `${t("siriMoveUrlMessage", { name: item.name })}\n\n${siriMoveUrl}`,
+      });
+    } catch {
+      Alert.alert(t("siriMoveUrlTitle"), siriMoveUrl);
+    }
   };
 
   return (
@@ -128,6 +146,27 @@ export default function ItemDetailScreen() {
           </View>
         )}
 
+        <View style={[styles.infoCard, { backgroundColor: colors.cardBackground }]}> 
+          <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>{t("siriMoveUrlTitle")}</Text>
+          <Text style={[styles.notesText, { color: colors.textSecondary }]}>{t("siriMoveUrlHelp")}</Text>
+          <View style={[styles.infoRow, { marginTop: 8 }]}> 
+            <Ionicons name="link-outline" size={18} color={colors.primary} />
+            <Text style={[styles.siriUrlText, { color: colors.text }]} numberOfLines={1}>
+              {siriMoveUrl}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.siriActionButton, { borderColor: colors.border }]}
+            activeOpacity={0.8}
+            onPress={() => {
+              void handleShareSiriUrl();
+            }}
+          >
+            <Ionicons name="share-social-outline" size={16} color={colors.primary} />
+            <Text style={[styles.siriActionText, { color: colors.primary }]}>{t("siriMoveUrlShare")}</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Actions */}
         {!isReturned && (
           <View style={styles.actions}>
@@ -142,7 +181,7 @@ export default function ItemDetailScreen() {
               <Ionicons name="swap-horizontal-outline" size={20} color={colors.white} />
               <Text style={[styles.actionText, { color: colors.white }]}>{t("moveAction")}</Text>
             </TouchableOpacity>
-            {canManageLoadout ? (
+            {canManageLoadout || canReturnOwnItem ? (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.border }]}
                 activeOpacity={0.8}
@@ -228,6 +267,26 @@ const styles = StyleSheet.create({
   notesText: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  siriUrlText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Roboto_500Medium",
+  },
+  siriActionButton: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  siriActionText: {
+    fontSize: 14,
+    fontFamily: "Roboto_500Medium",
   },
   actions: {
     gap: 12,
