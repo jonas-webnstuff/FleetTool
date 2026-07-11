@@ -1,8 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getLocales } from "expo-localization";
 import { translations, Language, TranslationKey } from "@/i18n/translations";
 
 const LANG_KEY = "fleettool_language";
+
+function deviceLanguage(): Language {
+  const tag = getLocales()[0]?.languageCode ?? "en";
+  return tag === "sv" ? "sv" : "en";
+}
 
 type LanguageContextType = {
   language: Language;
@@ -13,7 +19,7 @@ type LanguageContextType = {
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>(deviceLanguage);
 
   useEffect(() => {
     AsyncStorage.getItem(LANG_KEY).then((stored) => {

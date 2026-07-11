@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   View,
   Text,
   FlatList,
@@ -40,13 +41,9 @@ function SwipeableToolRow({
   onSwipeLeft: (itemId: string) => void;
 }) {
   const swipeX = useRef(new Animated.Value(0)).current;
-  const hasTriggeredSwipeRef = useRef(false);
 
   const panResponder = useRef(
     PanResponder.create({
-      onPanResponderGrant: () => {
-        hasTriggeredSwipeRef.current = false;
-      },
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
         return gestureState.dx < -8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
       },
@@ -56,20 +53,13 @@ function SwipeableToolRow({
       onPanResponderMove: (_evt, gestureState) => {
         const nextX = Math.max(-140, Math.min(0, gestureState.dx));
         swipeX.setValue(nextX);
-
-        if (!hasTriggeredSwipeRef.current && gestureState.dx <= -80) {
-          hasTriggeredSwipeRef.current = true;
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        if (gestureState.dx <= -80) {
           hapticLight();
           onSwipeLeft(item.id);
-
-          Animated.spring(swipeX, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-          }).start();
         }
-      },
-      onPanResponderRelease: () => {
+
         Animated.spring(swipeX, {
           toValue: 0,
           useNativeDriver: true,
@@ -77,7 +67,6 @@ function SwipeableToolRow({
         }).start();
       },
       onPanResponderTerminate: () => {
-        hasTriggeredSwipeRef.current = false;
         Animated.spring(swipeX, {
           toValue: 0,
           useNativeDriver: true,
@@ -90,7 +79,7 @@ function SwipeableToolRow({
   return (
     <View style={styles.swipeContainer}>
       <View style={[styles.swipeHintLayer, { backgroundColor: colors.primary }]} pointerEvents="none">
-        <Text style={[styles.swipeHintText, { color: colors.white }]}>Flytta till olistade</Text>
+        <Text style={[styles.swipeHintText, { color: "#FFFFFF" }]}>Flytta till olistade</Text>
       </View>
 
       <Animated.View
@@ -131,6 +120,7 @@ export default function ItemsScreen() {
   const {
     items,
     moveItem,
+    returnItem,
     refreshItems,
     canManageLoadout,
     defaultItemLocationType,
@@ -145,7 +135,12 @@ export default function ItemsScreen() {
 
   const itemsRef = useRef<FleetItem[]>([]);
   const moveItemRef = useRef(moveItem);
+  const returnItemRef = useRef(returnItem);
   const [refreshing, setRefreshing] = useState(false);
+  const canSelfAssignUnassigned =
+    defaultItemLocationType === "person" && (itemMode !== "central" || Boolean(currentMemberId));
+  const canReturnOwnTools =
+    defaultItemLocationType === "person" && (itemMode !== "central" || Boolean(currentMemberId));
 
   const searchAnim = useSharedValue(0);
   const hasQuery = query.trim().length > 0;
@@ -227,7 +222,8 @@ export default function ItemsScreen() {
   useEffect(() => {
     itemsRef.current = items;
     moveItemRef.current = moveItem;
-  }, [items, moveItem]);
+    returnItemRef.current = returnItem;
+  }, [items, moveItem, returnItem]);
 
   const moveItemToUnassigned = (itemId: string) => {
     const item = itemsRef.current.find((candidate) => candidate.id === itemId);
@@ -235,10 +231,15 @@ export default function ItemsScreen() {
       return;
     }
 
-    moveItemRef.current(item.id, "person", undefined, undefined, undefined);
+    returnItemRef.current(item.id);
   };
 
   const assignUnassignedToCurrentUser = (itemId: string) => {
+    if (itemMode === "central" && !currentMemberId) {
+      Alert.alert(t("restrictedFeatureTitle"), t("restrictedPersonAssignmentBody"));
+      return;
+    }
+
     const item = itemsRef.current.find((candidate) => candidate.id === itemId);
     if (!item) {
       return;
@@ -246,6 +247,25 @@ export default function ItemsScreen() {
 
     const fallbackName = currentMemberName.trim() || "-";
     moveItemRef.current(item.id, "person", fallbackName, undefined, currentMemberId || undefined);
+  };
+
+  const confirmAssignUnassignedToCurrentUser = (itemId: string) => {
+    const item = itemsRef.current.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    Alert.alert(
+      t("confirm"),
+      t("confirmMoveUnassignedBody", { name: item.name }),
+      [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("confirm"),
+          onPress: () => assignUnassignedToCurrentUser(item.id),
+        },
+      ]
+    );
   };
 
   const handleRefresh = () => {
@@ -331,8 +351,8 @@ export default function ItemsScreen() {
               {defaultItemLocationType === "person" ? (
                 <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("toolsAssignedToYouHint")}</Text>
               ) : null}
-              {defaultItemLocationType === "person" ? (
-                <Text style={[styles.userHint, { color: colors.textSecondary }]}>Svep ett verktyg till vanster for att markera det som olistat.</Text>
+              {defaultItemLocationType === "person" && (canManageLoadout || canReturnOwnTools) ? (
+                <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("swipeLeftToUnassign")}</Text>
               ) : null}
 
             </View>
@@ -342,7 +362,9 @@ export default function ItemsScreen() {
               <View style={styles.quickPeopleSection}>
                 <View style={styles.unassignedSection}>
                   <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
-                  <Text style={[styles.userHint, { color: colors.textSecondary }]}>{t("tapUnassignedToAssignYou")}</Text>
+                  <Text style={[styles.userHint, { color: colors.textSecondary }]}> 
+                    {canSelfAssignUnassigned ? t("tapUnassignedToAssignYou") : t("restrictedPersonAssignmentBody")}
+                  </Text>
                   <View style={styles.quickPeopleWrap}>
                     {unassignedTools.map((item) => (
                       <TouchableOpacity
@@ -357,7 +379,7 @@ export default function ItemsScreen() {
                         activeOpacity={0.8}
                         onPress={() => {
                           hapticLight();
-                          assignUnassignedToCurrentUser(item.id);
+                          confirmAssignUnassignedToCurrentUser(item.id);
                         }}
                       >
                         <Ionicons name="cube-outline" size={16} color={colors.primary} />
@@ -398,7 +420,7 @@ export default function ItemsScreen() {
                   activeOpacity={0.8}
                   onPress={() => {
                     hapticLight();
-                    assignUnassignedToCurrentUser(item.id);
+                    confirmAssignUnassignedToCurrentUser(item.id);
                   }}
                 >
                   <View style={styles.toolTouch}>

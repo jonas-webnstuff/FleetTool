@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Alert } from "react-native";
 import { ActivityEvent, FleetItem, Member, MembershipRole, Vehicle } from "@/types";
+import { setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
 import { useSupabase } from "@/lib/supabase";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
 
@@ -105,6 +106,32 @@ function safeParseJson<T>(value: string | null, fallback: T): T {
   }
 }
 
+function normalizeLookup(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function formatMoveDebugValue(value: unknown): string {
+  if (value === undefined) {
+    return "undefined";
+  }
+
+  if (value === null) {
+    return "null";
+  }
+
+  if (typeof value === "string") {
+    return value || "empty";
+  }
+
+  return String(value);
+}
+
+function buildMoveDebugLine(details: Record<string, unknown>): string {
+  return Object.entries(details)
+    .map(([key, value]) => `${key}=${formatMoveDebugValue(value)}`)
+    .join(" | ");
+}
+
 const ItemsContext = createContext<ItemsContextType | null>(null);
 
 export function ItemsProvider({ children }: { children: ReactNode }) {
@@ -168,8 +195,36 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       return "";
     }
 
-    return currentMembership?.id ?? members.find((member) => member.clerkUserId === userId)?.id ?? "";
-  }, [currentMembership?.id, effectiveItemMode, members, userId]);
+    const byCurrentMembership = currentMembership?.id;
+    if (byCurrentMembership) {
+      return byCurrentMembership;
+    }
+
+    const byClerkId = members.find((member) => member.clerkUserId === userId)?.id;
+    if (byClerkId) {
+      return byClerkId;
+    }
+
+    const authEmail = normalizeLookup(
+      user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress
+    );
+    if (authEmail) {
+      const byEmail = members.find((member) => normalizeLookup(member.email) === authEmail)?.id;
+      if (byEmail) {
+        return byEmail;
+      }
+    }
+
+    const authFullName = normalizeLookup(user?.fullName ?? [user?.firstName, user?.lastName].filter(Boolean).join(" "));
+    if (authFullName) {
+      const byName = members.find((member) => normalizeLookup(member.fullName) === authFullName)?.id;
+      if (byName) {
+        return byName;
+      }
+    }
+
+    return "";
+  }, [currentMembership?.id, effectiveItemMode, members, user, userId]);
 
   const currentMemberName = useMemo(() => {
     const fallbackFullName = [user?.firstName, user?.lastName]
@@ -1059,8 +1114,26 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const returnItem = (id: string) => {
-    if (!canManageLoadout) {
+    const item = items.find((candidate) => candidate.id === id);
+    const canReturnOwnItem = Boolean(
+      effectiveItemMode === "central"
+      && currentUserRole === "field_user"
+      && item
+      && item.locationType === "person"
+      && (
+        (currentMemberId && item.assignedMembershipId === currentMemberId)
+        || (normalizeLookup(item.assignedPerson) !== "" && normalizeLookup(item.assignedPerson) === normalizeLookup(currentMemberName))
+      )
+    );
+
+    if (!canManageLoadout && !canReturnOwnItem) {
       console.warn("returnItem blocked by role policy");
+      Alert.alert(
+        "Begränsad åtgärd",
+        currentUserRole === "field_user"
+          ? "Du kan bara lägga tillbaka verktyg som är tilldelade dig."
+          : "Du kan inte lägga tillbaka det här verktyget i det här läget."
+      );
       return;
     }
 
@@ -1076,21 +1149,23 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .eq("id", id)
         .then(({ error }) => {
           if (!error) {
-            const itemToReturn = items.find((item) => item.id === id);
+            const itemToReturn = items.find((candidate) => candidate.id === id);
             appendActivity({
               action: "item_returned",
               itemName: itemToReturn?.name,
             });
-            setItems((prev) => {
-              const item = prev.find((i) => i.id === id);
-              if (item) {
-                setReturnedItems((r) => [
-                  { ...item, returnedDate: new Date().toISOString().split("T")[0] },
-                  ...r,
-                ]);
-              }
-              return prev.filter((i) => i.id !== id);
-            });
+            setItems((prev) =>
+              prev.map((i) =>
+                i.id === id
+                  ? {
+                      ...i,
+                      locationType: "person",
+                      assignedPerson: undefined,
+                      assignedMembershipId: undefined,
+                    }
+                  : i
+              )
+            );
           }
         });
     } else {
@@ -1098,15 +1173,18 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         action: "item_returned",
         itemName: items.find((item) => item.id === id)?.name,
       });
-      setItems((prev) => {
-        const item = prev.find((i) => i.id === id);
-        if (!item) return prev;
-        setReturnedItems((r) => [
-          { ...item, returnedDate: new Date().toISOString().split("T")[0] },
-          ...r,
-        ]);
-        return prev.filter((i) => i.id !== id);
-      });
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                locationType: "person",
+                assignedPerson: undefined,
+                assignedMembershipId: undefined,
+              }
+            : i
+        )
+      );
     }
   };
 
@@ -1119,73 +1197,38 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   ) => {
     if (effectiveItemMode === "central") {
       const currentItem = items.find((item) => item.id === id);
+      const isCurrentMemberTarget =
+        locationType === "person"
+        && normalizeLookup(assignedPerson) !== ""
+        && normalizeLookup(assignedPerson) === normalizeLookup(currentMemberName);
       const nextAssignedMembershipId =
         locationType === "person"
-          ? (assignedMembershipId ?? getMembershipId(assignedPerson))
+          ? (assignedMembershipId ?? getMembershipId(assignedPerson) ?? (isCurrentMemberTarget ? (currentMemberId || null) : null))
           : null;
 
-      if (locationType === "person" && nextAssignedMembershipId) {
-        const optimisticItem = currentItem
-          ? {
-              ...currentItem,
-              locationType,
-              assignedPerson,
-              assignedMembershipId: nextAssignedMembershipId,
-              assignedVehicle: undefined,
-            }
-          : null;
+      if (locationType === "person" && !nextAssignedMembershipId) {
+        const debugLine = buildMoveDebugLine({
+          stage: "missing-membership-id",
+          itemId: id,
+          assignedPerson,
+          assignedMembershipId,
+          currentMemberId,
+          currentMemberName,
+          currentUserRole,
+          itemMode: effectiveItemMode,
+          resolvedByName: getMembershipId(assignedPerson),
+          isCurrentMemberTarget,
+        });
 
-        if (optimisticItem) {
-          setItems((prev) => prev.map((i) => (i.id === id ? optimisticItem : i)));
-        }
-
-        void supabase
-          .rpc("move_item_to_person", {
-            p_item_id: id,
-            p_target_membership_id: nextAssignedMembershipId,
-          })
-          .then(({ data, error }) => {
-            if (!error && data === true) {
-              appendActivity({
-                action: "item_moved",
-                itemName: currentItem?.name,
-                fromName:
-                  currentItem?.locationType === "vehicle"
-                    ? getVehicleNameById(currentItem.assignedVehicle)
-                    : (currentItem?.assignedPerson ?? "-"),
-                toName: assignedPerson ?? "-",
-              });
-
-              setItems((prev) =>
-                prev.map((i) =>
-                  i.id === id
-                    ? {
-                        ...i,
-                        locationType,
-                        assignedPerson,
-                        assignedMembershipId: nextAssignedMembershipId,
-                        assignedVehicle: undefined,
-                      }
-                    : i
-                )
-              );
-              setItemsReloadTick((prev) => prev + 1);
-            } else {
-              if (currentItem) {
-                setItems((prev) => prev.map((i) => (i.id === id ? currentItem : i)));
-              }
-              console.warn("move_item_to_person rpc failed", {
-                id,
-                assignedMembershipId: nextAssignedMembershipId,
-                assignedPerson,
-                rpcResult: data,
-                message: error?.message,
-              });
-              Alert.alert("Kunde inte flytta verktyget", "Flytten gick inte att spara i databasen. Försök igen.");
-              setItemsReloadTick((prev) => prev + 1);
-            }
-          });
-
+        console.warn("moveItem blocked before DB call", debugLine);
+        void setMembershipLinkDebug(`move-debug: ${debugLine}`);
+        Alert.alert(
+          "Could not move item",
+          __DEV__
+            ? `Missing membership id.\n\nDEBUG: ${debugLine}`
+            : "Could not save to database. Please try again."
+        );
+        setItemsReloadTick((prev) => prev + 1);
         return;
       }
 
@@ -1229,7 +1272,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
             );
             setItemsReloadTick((prev) => prev + 1);
           } else {
-            console.warn("moveItem central update failed", {
+            const debugLine = buildMoveDebugLine({
+              stage: "update-failed",
               id,
               locationType,
               assignedPerson,
@@ -1237,8 +1281,20 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
               updatedRows: count,
               assignedVehicle,
               message: error?.message,
+              currentMemberId,
+              currentMemberName,
+              currentUserRole,
+              itemAssignedMembershipId: currentItem?.assignedMembershipId,
+              itemAssignedPerson: currentItem?.assignedPerson,
             });
-            Alert.alert("Kunde inte flytta verktyget", "Flytten gick inte att spara i databasen. Försök igen.");
+            console.warn("moveItem central update failed", debugLine);
+            void setMembershipLinkDebug(`move-debug: ${debugLine}`);
+            Alert.alert(
+              "Could not move item",
+              __DEV__
+                ? `Could not save to database.\n\nDEBUG: ${debugLine}`
+                : "Could not save to database. Please try again."
+            );
             setItemsReloadTick((prev) => prev + 1);
           }
         });

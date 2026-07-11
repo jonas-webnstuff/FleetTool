@@ -1,9 +1,20 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useSignIn, useSSO } from "@clerk/clerk-expo";
 import { useTheme } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { clearPendingClerkNameSync, setPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink, setPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import { useSupabase } from "@/lib/supabase";
@@ -30,6 +41,7 @@ function splitFullName(fullName: string): { firstName: string | null; lastName: 
 export default function SignInScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useLanguage();
   const { isLoaded, signIn, setActive } = useSignIn();
   const { startSSOFlow } = useSSO();
   const supabase = useSupabase();
@@ -56,7 +68,7 @@ export default function SignInScreen() {
       const { createdSessionId, setActive: setOAuthActive } = await startSSOFlow({ strategy });
 
       if (!createdSessionId) {
-        setError("Inloggningen med extern leverantör kunde inte slutföras.");
+        setError(t("oauthCompleteError"));
         return;
       }
 
@@ -76,7 +88,7 @@ export default function SignInScreen() {
         "message" in err &&
         typeof (err as { message?: string }).message === "string"
           ? (err as { message: string }).message
-          : "Inloggningen med extern leverantör misslyckades.";
+          : t("oauthFailedError");
       setError(message);
     } finally {
       setLoading(false);
@@ -145,7 +157,7 @@ export default function SignInScreen() {
           ?? supported.find((factor) => factor.strategy === "backup_code");
 
         if (!selectedFactor?.strategy) {
-          setError("Kontot kräver tvåfaktor, men ingen stödd metod hittades i appen.");
+          setError(t("twoFactorNoMethodError"));
           return;
         }
 
@@ -172,7 +184,7 @@ export default function SignInScreen() {
         setTwoFactorCode("");
         setError("");
       } else {
-        setError(`Inloggningen kunde inte slutföras (${attempt.status}).`);
+        setError(t("signInIncomplete"));
       }
     } catch (err: unknown) {
       const firstError =
@@ -196,7 +208,7 @@ export default function SignInScreen() {
   const onVerifySecondFactor = async () => {
     if (!isLoaded || loading) return;
     if (!requiresSecondFactor || !twoFactorCode.trim()) {
-      setError("Ange din tvåfaktorkod.");
+      setError(t("twoFactorRequired"));
       return;
     }
 
@@ -228,7 +240,7 @@ export default function SignInScreen() {
 
       const message = firstError?.longMessage
         ?? firstError?.message
-        ?? "Felaktig tvåfaktorkod.";
+        ?? t("twoFactorInvalid");
       setError(message);
     } finally {
       setLoading(false);
@@ -236,121 +248,134 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}> 
-      <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
-        <Text style={[styles.title, { color: colors.text }]}>Logga in i FleetTool</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Använd ditt konto för att komma in i testmiljön.</Text>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      >
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+          <Text style={[styles.title, { color: colors.text }]}>{t("signInTitle")}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("signInSubtitle")}</Text>
 
-        <Pressable
-          onPress={() => void onOAuthSignIn("oauth_apple")}
-          disabled={!isLoaded || loading}
-          style={({ pressed }) => [
-            styles.socialButton,
-            styles.appleButton,
-            { opacity: pressed || loading ? 0.88 : 1 },
-          ]}
-        >
-          <Text style={styles.socialButtonText}>Fortsätt med Apple</Text>
-        </Pressable>
+          <Pressable
+            onPress={() => void onOAuthSignIn("oauth_apple")}
+            disabled={!isLoaded || loading}
+            style={({ pressed }) => [
+              styles.socialButton,
+              styles.appleButton,
+              { opacity: pressed || loading ? 0.88 : 1 },
+            ]}
+          >
+            <Text style={styles.socialButtonText}>{t("continueWithApple")}</Text>
+          </Pressable>
 
-        <Pressable
-          onPress={() => void onOAuthSignIn("oauth_google")}
-          disabled={!isLoaded || loading}
-          style={({ pressed }) => [
-            styles.socialButton,
-            styles.googleButton,
-            { opacity: pressed || loading ? 0.88 : 1 },
-          ]}
-        >
-          <Text style={[styles.socialButtonText, styles.googleButtonText]}>Fortsätt med Google</Text>
-        </Pressable>
+          <Pressable
+            onPress={() => void onOAuthSignIn("oauth_google")}
+            disabled={!isLoaded || loading}
+            style={({ pressed }) => [
+              styles.socialButton,
+              styles.googleButton,
+              { opacity: pressed || loading ? 0.88 : 1 },
+            ]}
+          >
+            <Text style={[styles.socialButtonText, styles.googleButtonText]}>{t("continueWithGoogle")}</Text>
+          </Pressable>
 
-        <View style={styles.dividerRow}>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          <Text style={[styles.dividerText, { color: colors.textSecondary }]}>eller</Text>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{t("orDivider")}</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          <TextInput
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            placeholder={t("emailPlaceholder")}
+            placeholderTextColor={colors.textSecondary}
+            style={[
+              styles.input,
+              { borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
+            ]}
+            value={emailAddress}
+            onChangeText={setEmailAddress}
+          />
+
+          <TextInput
+            secureTextEntry
+            autoCapitalize="none"
+            placeholder={t("passwordPlaceholder")}
+            placeholderTextColor={colors.textSecondary}
+            style={[
+              styles.input,
+              { borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
+            ]}
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          {requiresSecondFactor ? (
+            <>
+              <Text style={[styles.subtitle, { color: colors.textSecondary, marginBottom: 0 }]}>
+                {secondFactorStrategy === "totp"
+                  ? t("twoFactorPromptTotp")
+                  : secondFactorStrategy === "backup_code"
+                    ? t("twoFactorPromptBackup")
+                    : secondFactorStrategy === "phone_code"
+                      ? t("twoFactorPromptPhone")
+                      : t("twoFactorPromptEmail")}
+              </Text>
+              <TextInput
+                autoCapitalize="none"
+                autoComplete="one-time-code"
+                keyboardType="number-pad"
+                placeholder={secondFactorStrategy === "backup_code" ? t("twoFactorPlaceholderBackup") : t("twoFactorPlaceholderCode")}
+                placeholderTextColor={colors.textSecondary}
+                style={[
+                  styles.input,
+                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
+                ]}
+                value={twoFactorCode}
+                onChangeText={setTwoFactorCode}
+              />
+            </>
+          ) : null}
+
+          {error ? <Text style={[styles.error, { color: "#b3261e" }]}>{error}</Text> : null}
+
+          <Pressable
+            onPress={requiresSecondFactor ? onVerifySecondFactor : onSignIn}
+            disabled={!isLoaded || loading}
+            style={({ pressed }) => [
+              styles.button,
+              { backgroundColor: colors.primary, opacity: pressed || loading ? 0.85 : 1 },
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={[styles.buttonText, { color: colors.white }]}> 
+                {requiresSecondFactor ? t("verifyCodeButton") : t("signInButton")}
+              </Text>
+            )}
+          </Pressable>
         </View>
-
-        <TextInput
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          placeholder="E-post"
-          placeholderTextColor={colors.textSecondary}
-          style={[
-            styles.input,
-            { borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
-          ]}
-          value={emailAddress}
-          onChangeText={setEmailAddress}
-        />
-
-        <TextInput
-          secureTextEntry
-          autoCapitalize="none"
-          placeholder="Lösenord"
-          placeholderTextColor={colors.textSecondary}
-          style={[
-            styles.input,
-            { borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
-          ]}
-          value={password}
-          onChangeText={setPassword}
-        />
-
-        {requiresSecondFactor ? (
-          <>
-            <Text style={[styles.subtitle, { color: colors.textSecondary, marginBottom: 0 }]}> 
-              Ange {secondFactorStrategy === "totp"
-                ? "kod från autentiseringsapp"
-                : secondFactorStrategy === "backup_code"
-                  ? "backup-kod"
-                  : secondFactorStrategy === "phone_code"
-                    ? "SMS-kod"
-                    : "e-postkod"}.
-            </Text>
-            <TextInput
-              autoCapitalize="none"
-              autoComplete="one-time-code"
-              keyboardType="number-pad"
-              placeholder={secondFactorStrategy === "backup_code" ? "Backup-kod" : "Kod"}
-              placeholderTextColor={colors.textSecondary}
-              style={[
-                styles.input,
-                { borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
-              ]}
-              value={twoFactorCode}
-              onChangeText={setTwoFactorCode}
-            />
-          </>
-        ) : null}
-
-        {error ? <Text style={[styles.error, { color: "#b3261e" }]}>{error}</Text> : null}
-
-        <Pressable
-          onPress={requiresSecondFactor ? onVerifySecondFactor : onSignIn}
-          disabled={!isLoaded || loading}
-          style={({ pressed }) => [
-            styles.button,
-            { backgroundColor: colors.primary, opacity: pressed || loading ? 0.85 : 1 },
-          ]}
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={[styles.buttonText, { color: colors.white }]}> 
-              {requiresSecondFactor ? "Verifiera kod" : "Logga in"}
-            </Text>
-          )}
-        </Pressable>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 20,
   },
