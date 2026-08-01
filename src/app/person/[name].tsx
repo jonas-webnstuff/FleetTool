@@ -1,4 +1,5 @@
-import { View, Text, FlatList, StyleSheet } from "react-native";
+import { View, FlatList, StyleSheet } from "react-native";
+import { Text } from "@/components/Text";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
@@ -14,7 +15,13 @@ export default function PersonScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
 
-  const decodedName = decodeURIComponent(name);
+  const decodedName = (() => {
+    try {
+      return decodeURIComponent(name);
+    } catch {
+      return name;
+    }
+  })();
   const personItems = items.filter(
     (i) => i.locationType === "person" && i.assignedPerson === decodedName
   );

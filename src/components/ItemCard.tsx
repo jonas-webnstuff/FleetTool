@@ -1,5 +1,6 @@
 import { useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Alert, Animated } from "react-native";
+import { Text } from "@/components/Text";
 import { Swipeable } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";

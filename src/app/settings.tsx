@@ -1,4 +1,5 @@
-import { Alert, View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
+import { Alert, View, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
+import { Text } from "@/components/Text";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
@@ -9,6 +10,7 @@ import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useSupabase } from "@/lib/supabase";
+import { useItems } from "@/context/ItemsContext";
 import { clearPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import ScreenHeader from "@/components/ScreenHeader";
@@ -21,6 +23,7 @@ export default function SettingsScreen() {
   const { isLoaded: isAuthLoaded, userId, sessionId, isSignedIn } = useAuth();
   const { user } = useUser();
   const supabase = useSupabase();
+  const { clearLocalData } = useItems();
   const { colors, mode, setMode } = useTheme();
   const { t, language, setLanguage } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -82,6 +85,9 @@ export default function SettingsScreen() {
     await clearClerkNativeSessionToken();
     await clearPendingMembershipLink();
     await clearPendingClerkNameSync();
+    // Device-local fleet data (items/vehicles/categories/history) must not
+    // survive a sign-out, or the next account signed in on this device would see it.
+    await clearLocalData();
   };
 
   const refreshResolvedCompany = async (): Promise<string | null> => {

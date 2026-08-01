@@ -1,5 +1,4 @@
 import { Stack } from "expo-router";
-import { Text, TextInput } from "react-native";
 import { useMemo, useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-expo";
@@ -17,17 +16,6 @@ import { clearMembershipLinkDebug, setMembershipLinkDebug } from "@/lib/membersh
 import { decodeJwtHeader, decodeJwtPayload, getSupabaseTokenWithFallback, useSupabase } from "@/lib/supabase";
 
 SplashScreen.preventAutoHideAsync();
-
-// Apply Roboto as default font globally
-const defaultTextStyle = { fontFamily: "Roboto_400Regular" };
-// @ts-expect-error RN internal default style override
-Text.defaultProps = Text.defaultProps || {};
-// @ts-expect-error RN internal default style override
-Text.defaultProps.style = defaultTextStyle;
-// @ts-expect-error RN internal default style override
-TextInput.defaultProps = TextInput.defaultProps || {};
-// @ts-expect-error RN internal default style override
-TextInput.defaultProps.style = defaultTextStyle;
 
 function splitFullName(fullName: string): { firstName: string | null; lastName: string | null } {
   const trimmed = fullName.trim();
@@ -357,6 +345,7 @@ function AppStack() {
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="categories" options={{ headerShown: false }} />
           <Stack.Screen name="vehicles" options={{ headerShown: false }} />
+          <Stack.Screen name="vehicle-transfer" options={{ headerShown: false }} />
           <Stack.Screen name="add-item" options={{ headerShown: false }} />
           <Stack.Screen name="item/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="move/[id]" options={{ headerShown: false }} />

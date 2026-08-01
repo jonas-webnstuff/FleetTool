@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
@@ -11,6 +10,7 @@ import {
   View as RNView,
   ScrollView,
 } from "react-native";
+import { Text } from "@/components/Text";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
@@ -65,17 +65,25 @@ export default function MoveScreen() {
     return map;
   }, [members]);
 
+  // The roster's membership id is the source of truth; an item's own cached
+  // assignedMembershipId is only a fallback for names the roster doesn't know
+  // (e.g. stale/local data). This keeps two people who happen to share a
+  // display name from being merged, and the same real person from appearing twice.
+  const currentPersonId = item?.assignedMembershipId
+    ?? (currentPersonName ? memberLabelToId.get(currentPersonName) : undefined)
+    ?? null;
+
   const personTargets = useMemo(() => {
     const seen = new Set<string>();
     const targetsFromItems = items
       .filter((candidate) => candidate.locationType === "person" && candidate.assignedPerson)
       .map((candidate) => ({
-        id: candidate.assignedMembershipId ?? candidate.assignedPerson!,
+        id: memberLabelToId.get(candidate.assignedPerson!) ?? candidate.assignedMembershipId ?? candidate.assignedPerson!,
         label: candidate.assignedPerson!,
         type: "person" as const,
       }))
       .filter((candidate) => {
-        if (!candidate.label || candidate.label === currentPersonName) {
+        if (!candidate.label || candidate.id === currentPersonId) {
           return false;
         }
 
@@ -90,7 +98,7 @@ export default function MoveScreen() {
     const targetsFromMembers = members
       .map((member) => ({ id: member.id, label: member.fullName, type: "person" as const }))
       .filter((candidate) => {
-        if (!candidate.label || candidate.label === currentPersonName || seen.has(candidate.id)) {
+        if (!candidate.label || candidate.id === currentPersonId || seen.has(candidate.id)) {
           return false;
         }
 
@@ -99,7 +107,7 @@ export default function MoveScreen() {
       });
 
     return [...targetsFromItems, ...targetsFromMembers];
-  }, [currentPersonName, items, members]);
+  }, [currentPersonId, items, memberLabelToId, members]);
 
   const targets = useMemo(
     () => (

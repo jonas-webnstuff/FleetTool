@@ -12,8 +12,10 @@ node_modules/
 .expo/
 dist/
 
-# Native (regenerated via npx expo prebuild)
-ios/
+# Native
+# ios/ is intentionally committed: it contains the hand-written FleetToolSiriIntents.swift
+# App Intent and Info.plist/entitlements changes that `expo prebuild` does not generate.
+# Do NOT run `expo prebuild --clean` without first confirming those files are preserved.
 android/
 
 # Build artifacts

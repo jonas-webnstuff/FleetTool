@@ -95,6 +95,7 @@ type ItemsContextType = {
   setVehicleMode: (mode: "local" | "central") => void;
   setItemMode: (mode: "local" | "central") => void;
   refreshItems: () => void;
+  clearLocalData: () => Promise<void>;
 };
 
 function safeParseJson<T>(value: string | null, fallback: T): T {
@@ -980,7 +981,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           category_id: getCategoryId(item.category),
           assignment_type: item.locationType,
           vehicle_id: vehicleId,
-          assigned_membership_id: getMembershipId(item.assignedPerson),
+          assigned_membership_id: item.assignedMembershipId ?? getMembershipId(item.assignedPerson),
           notes: item.notes ?? null,
           image_url: item.image ?? null,
           status: "assigned",
@@ -998,7 +999,9 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                 ...item,
                 id: data.id as string,
                 assignedMembershipId:
-                  item.locationType === "person" ? (getMembershipId(item.assignedPerson) ?? undefined) : undefined,
+                  item.locationType === "person"
+                    ? (item.assignedMembershipId ?? getMembershipId(item.assignedPerson) ?? undefined)
+                    : undefined,
                 addedDate: ((data.created_at as string) ?? "").split("T")[0],
               },
               ...prev,
@@ -1029,8 +1032,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       if (updates.locationType !== undefined) patch.assignment_type = updates.locationType;
       if (updates.assignedVehicle !== undefined)
         patch.vehicle_id = updates.assignedVehicle ?? null;
-      if (updates.assignedPerson !== undefined)
-        patch.assigned_membership_id = getMembershipId(updates.assignedPerson);
+      if (updates.assignedPerson !== undefined || updates.assignedMembershipId !== undefined)
+        patch.assigned_membership_id = updates.assignedMembershipId ?? getMembershipId(updates.assignedPerson);
 
       void supabase
         .from("items")
@@ -1054,7 +1057,9 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                 ...i,
                 ...updates,
                 assignedMembershipId:
-                  nextLocationType === "person" ? (getMembershipId(nextAssignedPerson) ?? i.assignedMembershipId) : undefined,
+                  nextLocationType === "person"
+                    ? (updates.assignedMembershipId ?? getMembershipId(nextAssignedPerson) ?? i.assignedMembershipId)
+                    : undefined,
               };
             }));
           }
@@ -1206,6 +1211,25 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           ? (assignedMembershipId ?? getMembershipId(assignedPerson) ?? (isCurrentMemberTarget ? (currentMemberId || null) : null))
           : null;
 
+      if (!canManageLoadout) {
+        const isRestrictedVehicleMove = locationType === "vehicle" && !canMoveBetweenVehiclesOnly;
+        const isRestrictedPersonHandover =
+          currentUserRole === "field_user"
+          && locationType === "person"
+          && currentItem?.locationType === "person"
+          && Boolean(currentItem.assignedMembershipId)
+          && currentItem.assignedMembershipId !== currentMemberId;
+
+        if (isRestrictedVehicleMove || isRestrictedPersonHandover) {
+          console.warn("moveItem blocked by role policy");
+          Alert.alert(
+            "Begränsad åtgärd",
+            "Du har inte behörighet att flytta det här verktyget på det här sättet."
+          );
+          return;
+        }
+      }
+
       if (locationType === "person" && !nextAssignedMembershipId) {
         const debugLine = buildMoveDebugLine({
           stage: "missing-membership-id",
@@ -1232,18 +1256,19 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Routed through the move_item_to_person RPC (not a plain table update) so the
+      // field_user handover/vehicle-mode rules are enforced by Postgres itself, not
+      // just by the client-side checks above — those can be bypassed by anyone calling
+      // the Supabase API directly with their own valid session.
+      const rpcTargetId = locationType === "vehicle" ? (assignedVehicle ?? null) : nextAssignedMembershipId;
+
       void supabase
-        .from("items")
-        .update({
-          assignment_type: locationType,
-          vehicle_id: locationType === "vehicle" ? (assignedVehicle ?? null) : null,
-          assigned_membership_id:
-            nextAssignedMembershipId,
-          status: "assigned",
-        }, { count: "exact" })
-        .eq("id", id)
-        .then(({ error, count }) => {
-          if (!error && count === 1) {
+        .rpc("move_item_to_person", {
+          p_item_id: id,
+          p_target_membership_id: rpcTargetId,
+        })
+        .then(({ data, error }) => {
+          if (!error && data === true) {
             appendActivity({
               action: "item_moved",
               itemName: currentItem?.name,
@@ -1273,12 +1298,12 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
             setItemsReloadTick((prev) => prev + 1);
           } else {
             const debugLine = buildMoveDebugLine({
-              stage: "update-failed",
+              stage: "rpc-failed",
               id,
               locationType,
               assignedPerson,
               assignedMembershipId: nextAssignedMembershipId,
-              updatedRows: count,
+              rpcResult: data,
               assignedVehicle,
               message: error?.message,
               currentMemberId,
@@ -1287,7 +1312,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
               itemAssignedMembershipId: currentItem?.assignedMembershipId,
               itemAssignedPerson: currentItem?.assignedPerson,
             });
-            console.warn("moveItem central update failed", debugLine);
+            console.warn("moveItem central rpc failed", debugLine);
             void setMembershipLinkDebug(`move-debug: ${debugLine}`);
             Alert.alert(
               "Could not move item",
@@ -1527,6 +1552,24 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     setItemsReloadTick((prev) => prev + 1);
   };
 
+  // Wipes device-local fleet data so it can't leak to the next account signed in on this device.
+  const clearLocalData = async () => {
+    await AsyncStorage.multiRemove([
+      ITEMS_KEY,
+      RETURNED_KEY,
+      VEHICLES_KEY,
+      CATEGORIES_KEY,
+      ACTIVITY_LOG_KEY,
+    ]);
+    itemsRef.current = [];
+    vehiclesRef.current = [];
+    setItems([]);
+    setReturnedItems([]);
+    setVehicles(DEFAULT_VEHICLES);
+    setCategories(DEFAULT_CATEGORIES);
+    setActivityLog([]);
+  };
+
   return (
     <ItemsContext.Provider
       value={{
@@ -1563,6 +1606,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         setVehicleMode,
         setItemMode,
         refreshItems,
+        clearLocalData,
       }}
     >
       {children}

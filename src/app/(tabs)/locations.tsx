@@ -1,14 +1,13 @@
 import { useMemo, useState } from "react";
 import {
   View,
-  Text,
   SectionList,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  TextInput,
   Modal,
 } from "react-native";
+import { Text, TextInput } from "@/components/Text";
 import { Swipeable } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";

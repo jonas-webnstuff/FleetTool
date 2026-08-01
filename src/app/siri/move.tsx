@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
+import { Text } from "@/components/Text";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useItems } from "@/context/ItemsContext";
 import { useLanguage } from "@/context/LanguageContext";

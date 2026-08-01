@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -11,6 +9,7 @@ import {
   Platform,
   ActionSheetIOS,
 } from "react-native";
+import { Text, TextInput } from "@/components/Text";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -46,6 +45,9 @@ export default function AddItemScreen() {
   const [assignedPerson, setAssignedPerson] = useState(
     itemMode === "central" ? (members[0]?.fullName ?? "") : ""
   );
+  const [assignedMembershipId, setAssignedMembershipId] = useState<string | undefined>(
+    itemMode === "central" ? members[0]?.id : undefined
+  );
   const [assignedVehicle, setAssignedVehicle] = useState(vehicles[0]?.id ?? "");
   const [notes, setNotes] = useState("");
   const [imageUri, setImageUri] = useState<string | undefined>();
@@ -74,6 +76,7 @@ export default function AddItemScreen() {
 
     if (locationType === "person" && itemMode === "central" && !assignedPerson.trim() && members.length > 0) {
       setAssignedPerson(members[0].fullName);
+      setAssignedMembershipId(members[0].id);
     }
   }, [assignedPerson, assignedVehicle, itemMode, locationType, members, vehicles]);
 
@@ -165,6 +168,7 @@ export default function AddItemScreen() {
       category,
       locationType,
       assignedPerson: locationType === "person" ? assignedPerson.trim() : undefined,
+      assignedMembershipId: locationType === "person" ? assignedMembershipId : undefined,
       assignedVehicle: locationType === "vehicle" ? assignedVehicle : undefined,
       notes: notes.trim() || undefined,
       image: imageUri,
@@ -288,23 +292,30 @@ export default function AddItemScreen() {
             <Text style={[styles.label, { color: colors.textSecondary }]}>{t("labelPersonName")}</Text>
               {itemMode === "central" ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {members.map((m) => (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: assignedPerson === m.fullName ? colors.primary : colors.cardBackground,
-                          borderColor: assignedPerson === m.fullName ? colors.primary : colors.border,
-                        },
-                      ]}
-                      onPress={() => { hapticSelection(); setAssignedPerson(m.fullName); }}
-                    >
-                      <Text style={{ color: assignedPerson === m.fullName ? colors.white : colors.text, fontSize: 14 }}>
-                        {m.fullName}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {members.map((m) => {
+                    const isSelected = assignedMembershipId === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.cardBackground,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => {
+                          hapticSelection();
+                          setAssignedPerson(m.fullName);
+                          setAssignedMembershipId(m.id);
+                        }}
+                      >
+                        <Text style={{ color: isSelected ? colors.white : colors.text, fontSize: 14 }}>
+                          {m.fullName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               ) : (
                 <TextInput

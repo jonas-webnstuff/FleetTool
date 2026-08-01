@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  TextInput,
   Alert,
   ScrollView,
 } from "react-native";
+import { Text, TextInput } from "@/components/Text";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";

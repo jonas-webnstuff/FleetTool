@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share, Linking } from "react-native";
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Share, Linking } from "react-native";
+import { Text } from "@/components/Text";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";

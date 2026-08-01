@@ -6,10 +6,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "@/components/Text";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useSignIn, useSSO } from "@clerk/clerk-expo";

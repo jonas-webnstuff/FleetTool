@@ -2,15 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   View,
-  Text,
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
-  Animated,
-  PanResponder,
   RefreshControl,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
+import { Text, TextInput } from "@/components/Text";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "react-native-reanimated";
@@ -40,63 +38,40 @@ function SwipeableToolRow({
   onPress: () => void;
   onSwipeLeft: (itemId: string) => void;
 }) {
-  const swipeX = useRef(new Animated.Value(0)).current;
+  const swipeableRef = useRef<Swipeable>(null);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, gestureState) => {
-        return gestureState.dx < -8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-      },
-      onMoveShouldSetPanResponderCapture: (_evt, gestureState) => {
-        return gestureState.dx < -8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-      },
-      onPanResponderMove: (_evt, gestureState) => {
-        const nextX = Math.max(-140, Math.min(0, gestureState.dx));
-        swipeX.setValue(nextX);
-      },
-      onPanResponderRelease: (_evt, gestureState) => {
-        if (gestureState.dx <= -80) {
-          hapticLight();
-          onSwipeLeft(item.id);
-        }
-
-        Animated.spring(swipeX, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 6,
-        }).start();
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(swipeX, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 6,
-        }).start();
-      },
-    })
-  ).current;
+  const renderRightActions = () => (
+    <View style={[styles.swipeHintLayer, { backgroundColor: colors.primary }]}>
+      <Text style={[styles.swipeHintText, { color: "#FFFFFF" }]}>Flytta till olistade</Text>
+    </View>
+  );
 
   return (
-    <View style={styles.swipeContainer}>
-      <View style={[styles.swipeHintLayer, { backgroundColor: colors.primary }]} pointerEvents="none">
-        <Text style={[styles.swipeHintText, { color: "#FFFFFF" }]}>Flytta till olistade</Text>
-      </View>
-
-      <Animated.View
-        style={[
-          styles.toolCard,
-          {
-            backgroundColor: colors.cardBackground,
-            borderColor: colors.border,
-            borderWidth: 1,
-            transform: [{ translateX: swipeX }],
-            zIndex: 1,
-          },
-        ]}
-        {...panResponder.panHandlers}
+    <Swipeable
+      ref={swipeableRef}
+      containerStyle={styles.swipeContainer}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      rightThreshold={64}
+      friction={1.5}
+      onSwipeableWillOpen={() => {
+        // Fires the instant the finger lifts past the threshold, before the
+        // settle animation runs — the move must not happen mid-drag or lag
+        // behind the release.
+        hapticLight();
+        onSwipeLeft(item.id);
+      }}
+      onSwipeableOpen={() => {
+        swipeableRef.current?.close();
+      }}
+    >
+      <TouchableOpacity
+        style={[styles.toolCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 }]}
+        activeOpacity={0.85}
+        onPress={onPress}
       >
-        <TouchableOpacity style={styles.toolTouch} activeOpacity={0.85} onPress={onPress}>
-          <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
+        <View style={styles.toolTouch}>
+          <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}>
             <Ionicons name="cube-outline" size={24} color={colors.primary} />
           </View>
 
@@ -109,9 +84,9 @@ function SwipeableToolRow({
               </Text>
             ) : null}
           </View>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+        </View>
+      </TouchableOpacity>
+    </Swipeable>
   );
 }
 
@@ -498,7 +473,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   swipeHintLayer: {
-    ...StyleSheet.absoluteFillObject,
+    width: 140,
     borderRadius: 12,
     alignItems: "flex-end",
     justifyContent: "center",
