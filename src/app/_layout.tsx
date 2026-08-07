@@ -10,6 +10,7 @@ import { ItemsProvider } from "@/context/ItemsContext";
 import { SearchProvider } from "@/context/SearchContext";
 import { ThemeProvider as AppThemeProvider, useTheme } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { ToastProvider } from "@/context/ToastContext";
 import { clearPendingClerkNameSync, getPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import { clearMembershipLinkDebug, setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
@@ -380,11 +381,13 @@ export default function RootLayout() {
       <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
         <AppThemeProvider>
           <LanguageProvider>
-            <ItemsProvider>
-              <SearchProvider>
-                <AppStack />
-              </SearchProvider>
-            </ItemsProvider>
+            <ToastProvider>
+              <ItemsProvider>
+                <SearchProvider>
+                  <AppStack />
+                </SearchProvider>
+              </ItemsProvider>
+            </ToastProvider>
           </LanguageProvider>
         </AppThemeProvider>
       </ClerkProvider>

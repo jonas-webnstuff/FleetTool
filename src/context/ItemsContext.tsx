@@ -6,6 +6,7 @@ import { ActivityEvent, FleetItem, Member, MembershipRole, Vehicle } from "@/typ
 import { setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
 import { useSupabase } from "@/lib/supabase";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
+import { useToast } from "@/context/ToastContext";
 
 const ITEMS_KEY = "fleettool_items";
 const RETURNED_KEY = "fleettool_returned";
@@ -136,6 +137,7 @@ function buildMoveDebugLine(details: Record<string, unknown>): string {
 const ItemsContext = createContext<ItemsContextType | null>(null);
 
 export function ItemsProvider({ children }: { children: ReactNode }) {
+  const { showToast } = useToast();
   const supabase = useSupabase();
   const { userId, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const { user, isLoaded: isUserLoaded } = useUser();
@@ -1171,6 +1173,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
                   : i
               )
             );
+            showToast("Verktyg återlämnat");
           }
         });
     } else {
@@ -1190,6 +1193,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
             : i
         )
       );
+      showToast("Verktyg återlämnat");
     }
   };
 
@@ -1296,6 +1300,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
               )
             );
             setItemsReloadTick((prev) => prev + 1);
+            showToast("Verktyg flyttat");
           } else {
             const debugLine = buildMoveDebugLine({
               stage: "rpc-failed",
@@ -1355,6 +1360,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
             : i
         )
       );
+      showToast("Verktyg flyttat");
     }
   };
 
