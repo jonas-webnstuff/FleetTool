@@ -13,13 +13,22 @@ node_modules/
 dist/
 
 # Native
-# ios/ is intentionally committed: it contains the hand-written FleetToolSiriIntents.swift
-# App Intent and Info.plist/entitlements changes that `expo prebuild` does not generate.
+# ios/ and android/ are intentionally committed and hand-maintained (built via
+# Xcode / Android Studio / Gradle directly, not EAS). ios/ contains the
+# hand-written FleetToolSiriIntents.swift App Intent and Info.plist/entitlements
+# changes; android/ contains a manual fix to styles.xml (see commit history).
 # Do NOT run `expo prebuild --clean` without first confirming those files are preserved.
-android/
 
 # Build artifacts
 *.jsbundle
+
+# Android build outputs / local machine config (android/ source itself is committed)
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/*.hprof
 
 # Environment variables
 .env
