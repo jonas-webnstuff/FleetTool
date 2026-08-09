@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +20,8 @@ import { clearPendingMembershipLink, setPendingMembershipLink } from "@/lib/pend
 import { useSupabase } from "@/lib/supabase";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const PRIVACY_POLICY_URL = "https://fleettoolapp.com/privacy";
 
 function splitFullName(fullName: string): { firstName: string | null; lastName: string | null } {
   const trimmed = fullName.trim();
@@ -363,6 +366,12 @@ export default function SignInScreen() {
               </Text>
             )}
           </Pressable>
+
+          <Pressable onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)} style={styles.privacyLink}>
+            <Text style={[styles.privacyLinkText, { color: colors.textSecondary }]}>
+              {t("privacyPolicyLink")}
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -449,5 +458,14 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 13,
+  },
+  privacyLink: {
+    alignItems: "center",
+    marginTop: 4,
+    paddingVertical: 4,
+  },
+  privacyLinkText: {
+    fontSize: 13,
+    textDecorationLine: "underline",
   },
 });
