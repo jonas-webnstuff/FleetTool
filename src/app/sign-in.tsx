@@ -18,10 +18,9 @@ import { useLanguage } from "@/context/LanguageContext";
 import { clearPendingClerkNameSync, setPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink, setPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import { useSupabase } from "@/lib/supabase";
+import { PRIVACY_POLICY_URL } from "@/lib/links";
 
 WebBrowser.maybeCompleteAuthSession();
-
-const PRIVACY_POLICY_URL = "https://fleettoolapp.com/privacy";
 
 function splitFullName(fullName: string): { firstName: string | null; lastName: string | null } {
   const trimmed = fullName.trim();

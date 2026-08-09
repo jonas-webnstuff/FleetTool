@@ -1,4 +1,4 @@
-import { Alert, View, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
+import { Alert, Linking, View, ScrollView, StyleSheet, Switch, TouchableOpacity } from "react-native";
 import { Text } from "@/components/Text";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -13,6 +13,7 @@ import { useSupabase } from "@/lib/supabase";
 import { useItems } from "@/context/ItemsContext";
 import { clearPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink } from "@/lib/pendingMembershipLink";
+import { PRIVACY_POLICY_URL } from "@/lib/links";
 import ScreenHeader from "@/components/ScreenHeader";
 
 const CLERK_NATIVE_SESSION_TOKEN_KEY = "__clerk_client_jwt";
@@ -296,6 +297,23 @@ export default function SettingsScreen() {
             </Text>
           </View>
         </View>
+      </View>
+
+      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{t("sectionAbout")}</Text>
+      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
+        <TouchableOpacity
+          style={styles.row}
+          activeOpacity={0.7}
+          onPress={() => {
+            void Linking.openURL(PRIVACY_POLICY_URL);
+          }}
+        >
+          <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>{t("privacyPolicyLink")}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.version, { color: colors.textSecondary }]}>{t("version")}</Text>
