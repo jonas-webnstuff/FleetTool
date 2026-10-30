@@ -19,6 +19,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useTabSlide } from "@/hooks/useTabSlide";
 import { hapticLight } from "@/hooks/useHaptic";
 import { FleetItem } from "@/types";
+import { TranslationKey } from "@/i18n/translations";
 
 function SwipeableToolRow({
   item,
@@ -87,6 +88,71 @@ function SwipeableToolRow({
         </View>
       </TouchableOpacity>
     </Swipeable>
+  );
+}
+
+function OtherToolRow({
+  item,
+  colors,
+  t,
+  onPress,
+}: {
+  item: FleetItem;
+  colors: {
+    cardBackground: string;
+    badgeBg: string;
+    primary: string;
+    text: string;
+    border: string;
+    textSecondary: string;
+  };
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  onPress: () => void;
+}) {
+  const assigneeName = (item.assignedPerson ?? "").trim();
+  const isTaken = Boolean(assigneeName || item.assignedMembershipId);
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.toolCard,
+        { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1, marginBottom: 10 },
+      ]}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
+      <View style={styles.toolTouch}>
+        <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}>
+          <Ionicons name="cube-outline" size={24} color={colors.primary} />
+        </View>
+
+        <View style={styles.toolInfo}>
+          <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
+          <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
+          {!!item.notes ? (
+            <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.notes}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.toolStatus}>
+          {isTaken ? (
+            <>
+              <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.toolStatusText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {assigneeName || "-"}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+              <Text style={[styles.toolStatusText, { color: colors.primary }]}>{t("toolAvailableBadge")}</Text>
+            </>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -165,18 +231,20 @@ export default function ItemsScreen() {
     });
   }, [currentMemberId, currentMemberName, defaultItemLocationType, itemMode, items]);
 
-  const unassignedTools = useMemo(() => {
+  const scopedItemIds = useMemo(
+    () => new Set(scopedItems.map((item) => item.id)),
+    [scopedItems]
+  );
+
+  const otherTools = useMemo(() => {
     if (defaultItemLocationType !== "person") {
       return [] as FleetItem[];
     }
 
     return items.filter(
-      (item) =>
-        item.locationType === "person"
-        && !item.assignedMembershipId
-        && !(item.assignedPerson ?? "").trim()
+      (item) => item.locationType === "person" && !scopedItemIds.has(item.id)
     );
-  }, [defaultItemLocationType, items]);
+  }, [defaultItemLocationType, items, scopedItemIds]);
 
   const filtered = useMemo(() => {
     if (!hasQuery) {
@@ -184,7 +252,7 @@ export default function ItemsScreen() {
     }
 
     const q = query.trim().toLowerCase();
-    const source = defaultItemLocationType === "person" ? unassignedTools : scopedItems;
+    const source = defaultItemLocationType === "person" ? otherTools : scopedItems;
 
     return source.filter(
       (i) =>
@@ -192,7 +260,7 @@ export default function ItemsScreen() {
         i.category.toLowerCase().includes(q) ||
         (i.notes ?? "").toLowerCase().includes(q)
     );
-  }, [defaultItemLocationType, hasQuery, query, scopedItems, unassignedTools]);
+  }, [defaultItemLocationType, hasQuery, otherTools, query, scopedItems]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -241,6 +309,24 @@ export default function ItemsScreen() {
         },
       ]
     );
+  };
+
+  const handleOtherToolPress = (itemId: string) => {
+    const item = itemsRef.current.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    const assigneeName = (item.assignedPerson ?? "").trim();
+    if (assigneeName || item.assignedMembershipId) {
+      Alert.alert(
+        t("toolAlreadyAssignedTitle"),
+        t("toolAlreadyAssignedBody", { name: assigneeName || "-" })
+      );
+      return;
+    }
+
+    confirmAssignUnassignedToCurrentUser(itemId);
   };
 
   const handleRefresh = () => {
@@ -333,45 +419,25 @@ export default function ItemsScreen() {
             </View>
           }
           ListFooterComponent={
-            unassignedTools.length > 0 && !hasQuery ? (
+            otherTools.length > 0 && !hasQuery ? (
               <View style={styles.quickPeopleSection}>
                 <View style={styles.unassignedSection}>
-                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("unassignedTools")}</Text>
-                  <Text style={[styles.userHint, { color: colors.textSecondary }]}> 
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("otherToolsTitle")}</Text>
+                  <Text style={[styles.userHint, { color: colors.textSecondary }]}>
                     {canSelfAssignUnassigned ? t("tapUnassignedToAssignYou") : t("restrictedPersonAssignmentBody")}
                   </Text>
-                  <View style={styles.quickPeopleWrap}>
-                    {unassignedTools.map((item) => (
-                      <TouchableOpacity
+                  <View>
+                    {otherTools.map((item) => (
+                      <OtherToolRow
                         key={item.id}
-                        style={[
-                          styles.quickPersonChip,
-                          {
-                            backgroundColor: colors.cardBackground,
-                            borderColor: colors.border,
-                          },
-                        ]}
-                        activeOpacity={0.8}
+                        item={item}
+                        colors={colors}
+                        t={t}
                         onPress={() => {
                           hapticLight();
-                          confirmAssignUnassignedToCurrentUser(item.id);
+                          handleOtherToolPress(item.id);
                         }}
-                      >
-                        <Ionicons name="cube-outline" size={16} color={colors.primary} />
-                        <View style={styles.quickPersonMeta}>
-                          <Text style={[styles.quickPersonText, { color: colors.text }]} numberOfLines={1}>
-                            {item.name}
-                          </Text>
-                          {!!item.notes ? (
-                            <Text
-                              style={[styles.quickPersonNotes, { color: colors.textSecondary }]}
-                              numberOfLines={1}
-                            >
-                              {item.notes}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </TouchableOpacity>
+                      />
                     ))}
                   </View>
                 </View>
@@ -390,32 +456,15 @@ export default function ItemsScreen() {
           renderItem={({ item }) => {
             if (defaultItemLocationType === "person" && hasQuery) {
               return (
-                <TouchableOpacity
-                  style={[styles.toolCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 }]}
-                  activeOpacity={0.8}
+                <OtherToolRow
+                  item={item}
+                  colors={colors}
+                  t={t}
                   onPress={() => {
                     hapticLight();
-                    confirmAssignUnassignedToCurrentUser(item.id);
+                    handleOtherToolPress(item.id);
                   }}
-                >
-                  <View style={styles.toolTouch}>
-                    <View style={[styles.toolAvatar, { backgroundColor: colors.badgeBg }]}> 
-                      <Ionicons name="cube-outline" size={24} color={colors.primary} />
-                    </View>
-
-                    <View style={styles.toolInfo}>
-                      <Text style={[styles.toolName, { color: colors.text }]}>{item.name}</Text>
-                      <Text style={[styles.toolSubtext, { color: colors.textSecondary }]}>{item.category}</Text>
-                      {!!item.notes ? (
-                        <Text style={[styles.toolNotes, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {item.notes}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <Ionicons name="person-add-outline" size={16} color={colors.textSecondary} />
-                  </View>
-                </TouchableOpacity>
+                />
               );
             }
 
@@ -577,37 +626,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  quickPeopleWrap: {
-    marginTop: 4,
+  toolStatus: {
+    alignItems: "flex-end",
+    gap: 2,
+    maxWidth: 110,
+  },
+  toolStatusText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   quickPeopleSection: {
     marginTop: 6,
-  },
-  quickPersonChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  quickPersonMeta: {
-    flex: 1,
-  },
-  quickPersonText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  quickPersonNotes: {
-    fontSize: 12,
-    marginTop: 2,
   },
   unassignedSection: {
     marginTop: 12,

@@ -28,9 +28,12 @@ export const translations = {
     resultSingular: "result",
     resultPlural: "results",
     toolsAssignedToYouHint: "Showing tools assigned to you",
-    unassignedTools: "Unassigned tools",
-    tapUnassignedToAssignYou: "Tap a tool to assign it to yourself.",
+    otherToolsTitle: "Tools",
+    tapUnassignedToAssignYou: "Tap an available tool to assign it to yourself.",
     confirmMoveUnassignedBody: 'Move "{name}" to yourself?',
+    toolAvailableBadge: "Available",
+    toolAlreadyAssignedTitle: "Already assigned",
+    toolAlreadyAssignedBody: "{name} already has this tool, so you can't assign it to yourself.",
 
     // History screen
     returnedItemsHeading: "Returned items",
@@ -268,9 +271,12 @@ export const translations = {
     resultSingular: "resultat",
     resultPlural: "resultat",
     toolsAssignedToYouHint: "Visar verktyg som är tilldelade till dig",
-    unassignedTools: "Olistade verktyg",
-    tapUnassignedToAssignYou: "Tryck på ett verktyg för att tilldela det till dig.",
+    otherToolsTitle: "Verktyg",
+    tapUnassignedToAssignYou: "Tryck på ett ledigt verktyg för att tilldela det till dig.",
     confirmMoveUnassignedBody: 'Flytta "{name}" till dig själv?',
+    toolAvailableBadge: "Ledigt",
+    toolAlreadyAssignedTitle: "Redan tilldelat",
+    toolAlreadyAssignedBody: "{name} har redan det här verktyget, så du kan inte tilldela det till dig själv.",
 
     // History screen
     returnedItemsHeading: "Returnerade föremål",
