@@ -73,6 +73,8 @@ type ItemsContextType = {
   currentMemberId: string;
   currentMemberName: string;
   canManageLoadout: boolean;
+  /** The company's subscription is inactive: data can be read but not changed. */
+  isReadOnly: boolean;
   canAssignToPeople: boolean;
   canMoveBetweenVehiclesOnly: boolean;
   isLoaded: boolean;
@@ -161,6 +163,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const [currentUserRole, setCurrentUserRole] = useState<MembershipRole | null>(null);
   const [currentMembership, setCurrentMembership] = useState<MembershipRpcRow | null>(null);
   const [defaultItemLocationType, setDefaultItemLocationType] = useState<"person" | "vehicle">("person");
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [itemsReloadTick, setItemsReloadTick] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -177,9 +180,23 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   const effectiveItemMode: "local" | "central" = hasLinkedCompany ? "central" : itemMode;
 
   const isCentralFieldUser = effectiveItemMode === "central" && currentUserRole === "field_user";
-  const canManageLoadout = !isCentralFieldUser;
-  const canAssignToPeople = !isCentralFieldUser;
-  const canMoveBetweenVehiclesOnly = isCentralFieldUser && defaultItemLocationType === "vehicle";
+  const centralReadOnly = effectiveItemMode === "central" && isReadOnly;
+  const canManageLoadout = !isCentralFieldUser && !centralReadOnly;
+  const canAssignToPeople = !isCentralFieldUser && !centralReadOnly;
+  const canMoveBetweenVehiclesOnly = isCentralFieldUser && defaultItemLocationType === "vehicle" && !centralReadOnly;
+
+  // Shown instead of attempting a write the database would refuse.
+  const blockIfReadOnly = (): boolean => {
+    if (!centralReadOnly) {
+      return false;
+    }
+
+    Alert.alert(
+      "Skrivskyddat läge",
+      "Organisationens abonnemang är inte aktivt. Du kan se allt, men inte göra ändringar förrän en admin har ordnat betalningen i webbportalen."
+    );
+    return true;
+  };
   const assignableMembers = useMemo(
     () => members.filter((member) => {
       if (!allowAdminAssignment && (member.role === "admin" || member.role === "owner")) {
@@ -722,6 +739,14 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       try {
+        // Read-only when the subscription is inactive (enforced in the
+        // database too; this just lets the UI say so up front).
+        const { data: accessData, error: accessError } = await supabase.rpc("get_company_access");
+        if (!cancelled) {
+          const access = Array.isArray(accessData) ? accessData[0] as { writable?: boolean } | undefined : undefined;
+          setIsReadOnly(!accessError && access?.writable === false);
+        }
+
         // Get assignment mode from RPC (respects admin setting)
         const { data: modeData, error: modeError } = await supabase.rpc("get_company_assignment_mode");
         if (!cancelled && !modeError && modeData) {
@@ -972,6 +997,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
   // ─── Items mutations ──────────────────────────────────────────────────────
   const addItem = (item: Omit<FleetItem, "id">) => {
+    if (blockIfReadOnly()) return;
     if (!canManageLoadout) {
       console.warn("addItem blocked by role policy");
       return;
@@ -1026,6 +1052,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const updateItem = (id: string, updates: Partial<FleetItem>) => {
+    if (blockIfReadOnly()) return;
     if (!canManageLoadout) {
       console.warn("updateItem blocked by role policy");
       return;
@@ -1096,6 +1123,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteItem = (id: string) => {
+    if (blockIfReadOnly()) return;
     if (!canManageLoadout) {
       console.warn("deleteItem blocked by role policy");
       return;
@@ -1127,6 +1155,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const returnItem = (id: string) => {
+    if (blockIfReadOnly()) return;
     const item = items.find((candidate) => candidate.id === id);
     const canReturnOwnItem = Boolean(
       effectiveItemMode === "central"
@@ -1210,6 +1239,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     assignedVehicle?: string,
     assignedMembershipId?: string
   ) => {
+    if (blockIfReadOnly()) return;
     if (effectiveItemMode === "central") {
       const currentItem = items.find((item) => item.id === id);
       const isCurrentMemberTarget =
@@ -1371,6 +1401,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const assignItemsToVehicle = (itemIds: string[], vehicleId: string) => {
+    if (blockIfReadOnly()) return;
     if (!canManageLoadout || itemIds.length === 0) {
       if (!canManageLoadout) {
         console.warn("assignItemsToVehicle blocked by role policy");
@@ -1434,6 +1465,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
   // ─── Vehicles mutations ───────────────────────────────────────────────────
   const addVehicle = (name: string) => {
+    if (blockIfReadOnly()) return;
     if (effectiveVehicleMode === "central" && companyId) {
       void supabase
         .from("vehicles")
@@ -1441,6 +1473,13 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         .select("id, name")
         .single()
         .then(({ data, error }) => {
+          if (error?.message?.includes("plan_limit_vehicles")) {
+            Alert.alert(
+              "Fordonsgränsen är nådd",
+              "Organisationens plan tillåter inte fler aktiva fordon. En admin kan uppgradera planen i webbportalen."
+            );
+            return;
+          }
           if (!error && data) {
             appendActivity({ action: "vehicle_added", vehicleName: data.name as string });
             setVehicles((prev) => [
@@ -1456,6 +1495,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const updateVehicle = (id: string, name: string) => {
+    if (blockIfReadOnly()) return;
     if (effectiveVehicleMode === "central") {
       void supabase
         .from("vehicles")
@@ -1480,6 +1520,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const removeVehicle = (id: string) => {
+    if (blockIfReadOnly()) return;
     if (effectiveVehicleMode === "central") {
       void supabase
         .from("vehicles")
@@ -1505,6 +1546,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
   // ─── Category mutations ───────────────────────────────────────────────────
   const addCategory = (name: string) => {
+    if (blockIfReadOnly()) return;
     if (effectiveCategoryMode === "central" && companyId) {
       void supabase
         .from("categories")
@@ -1528,6 +1570,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
   };
 
   const removeCategory = (name: string) => {
+    if (blockIfReadOnly()) return;
     if (effectiveCategoryMode === "central") {
       void supabase
         .from("categories")
@@ -1600,6 +1643,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         currentMemberId,
         currentMemberName,
         canManageLoadout,
+        isReadOnly: centralReadOnly,
         canAssignToPeople,
         canMoveBetweenVehiclesOnly,
         isLoaded,
