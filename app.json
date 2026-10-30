@@ -13,7 +13,11 @@
       "buildNumber": "1"
     },
     "android": {
-      "package": "com.webnstuff.fleettool"
+      "package": "com.webnstuff.fleettool",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "output": "static",
@@ -36,7 +40,19 @@
             "./node_modules/@expo-google-fonts/roboto/700Bold/Roboto_700Bold.ttf"
           ]
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FleetTool använder dina bilder så att du kan lägga till en bild på ett verktyg.",
+          "cameraPermission": "FleetTool använder kameran så att du kan fotografera ett verktyg och lägga till bilden.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-image",
+      "expo-localization",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
