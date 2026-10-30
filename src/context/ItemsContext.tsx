@@ -5,6 +5,7 @@ import { Alert } from "react-native";
 import { ActivityEvent, FleetItem, Member, MembershipRole, Vehicle } from "@/types";
 import { setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
 import { useSupabase } from "@/lib/supabase";
+import { uploadItemImageIfLocal, withSignedItemImageUrls } from "@/lib/itemImages";
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import { useToast } from "@/context/ToastContext";
 
@@ -854,7 +855,9 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
             company_memberships: null,
           })
         );
-        applyMapped(mapped);
+        const signed = await withSignedItemImageUrls(supabase, mapped);
+        if (cancelled) return;
+        applyMapped(signed);
         return;
       }
 
@@ -886,7 +889,9 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
         })
       );
 
-      applyMapped(mapped);
+      const signed = await withSignedItemImageUrls(supabase, mapped);
+      if (cancelled) return;
+      applyMapped(signed);
     })();
 
     return () => {
@@ -975,7 +980,8 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
     if (effectiveItemMode === "central" && companyId) {
       const vehicleId =
         item.locationType === "vehicle" ? (item.assignedVehicle ?? null) : null;
-      void supabase
+      const centralCompanyId = companyId;
+      void uploadItemImageIfLocal(supabase, centralCompanyId, item.image).then((imageRef) => supabase
         .from("items")
         .insert({
           company_id: companyId,
@@ -985,7 +991,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           vehicle_id: vehicleId,
           assigned_membership_id: item.assignedMembershipId ?? getMembershipId(item.assignedPerson),
           notes: item.notes ?? null,
-          image_url: item.image ?? null,
+          image_url: imageRef,
           status: "assigned",
         })
         .select("id, created_at")
@@ -1009,7 +1015,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
               ...prev,
             ]);
           }
-        });
+        }));
     } else {
       appendActivity({
         action: "item_added",
