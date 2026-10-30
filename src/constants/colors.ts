@@ -10,6 +10,7 @@ export type ThemeColors = {
   tabBar: string;
   badgeBg: string;
   vehicleBadgeBg: string;
+  danger: string;
 };
 
 export const LightColors: ThemeColors = {
@@ -24,6 +25,7 @@ export const LightColors: ThemeColors = {
   tabBar: "#FFFFFF",
   badgeBg: "#EBF0F7",
   vehicleBadgeBg: "#E4ECF5",
+  danger: "#B42318",
 };
 
 export const DarkColors: ThemeColors = {
@@ -38,4 +40,5 @@ export const DarkColors: ThemeColors = {
   tabBar: "#18232F",
   badgeBg: "#1E2D3D",
   vehicleBadgeBg: "#1A2A38",
+  danger: "#FF8A7A",
 };

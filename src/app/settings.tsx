@@ -13,7 +13,7 @@ import { useSupabase } from "@/lib/supabase";
 import { useItems } from "@/context/ItemsContext";
 import { clearPendingClerkNameSync } from "@/lib/pendingClerkNameSync";
 import { clearPendingMembershipLink } from "@/lib/pendingMembershipLink";
-import { PRIVACY_POLICY_URL } from "@/lib/links";
+import { PRIVACY_POLICY_URL, WEB_APP_URL } from "@/lib/links";
 import ScreenHeader from "@/components/ScreenHeader";
 
 const CLERK_NATIVE_SESSION_TOKEN_KEY = "__clerk_client_jwt";
@@ -21,7 +21,7 @@ const CLERK_NATIVE_SESSION_TOKEN_KEY = "__clerk_client_jwt";
 export default function SettingsScreen() {
   const router = useRouter();
   const clerk = useClerk();
-  const { isLoaded: isAuthLoaded, userId, sessionId, isSignedIn } = useAuth();
+  const { isLoaded: isAuthLoaded, userId, sessionId, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const supabase = useSupabase();
   const { clearLocalData } = useItems();
@@ -31,6 +31,7 @@ export default function SettingsScreen() {
   const [resolvedCompanyId, setResolvedCompanyId] = useState<string | null>(null);
   const [resolvedCompanyName, setResolvedCompanyName] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const nativeSiriEnabled = Boolean(
     (Constants.expoConfig?.ios as { infoPlist?: Record<string, unknown> } | undefined)?.infoPlist?.FT_ENABLE_NATIVE_SIRI_INTENTS
@@ -178,6 +179,46 @@ export default function SettingsScreen() {
     }
   };
 
+  // Deletion runs on the web backend (it also removes company memberships),
+  // authenticated with this device's Clerk session token.
+  const deleteAccount = async () => {
+    setIsDeletingAccount(true);
+
+    try {
+      const token = await getToken();
+      const response = await fetch(`${WEB_APP_URL}/api/account/delete`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        Alert.alert(
+          t("deleteAccount"),
+          body?.error === "last_admin" ? t("deleteAccountLastAdmin") : t("deleteAccountFailed")
+        );
+        return;
+      }
+
+      // The Clerk user is gone; signing out just clears this device.
+      await clerk.signOut().catch(() => undefined);
+      await clearLocalAuthArtifacts();
+      router.replace("/sign-in");
+    } catch (error) {
+      console.warn("Account deletion failed:", error);
+      Alert.alert(t("deleteAccount"), t("deleteAccountFailed"));
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(t("deleteAccountConfirmTitle"), t("deleteAccountConfirmBody"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("deleteAccountConfirm"), style: "destructive", onPress: () => void deleteAccount() },
+    ]);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title={t("settingsTitle")} />
@@ -297,6 +338,21 @@ export default function SettingsScreen() {
             </Text>
           </View>
         </View>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <TouchableOpacity
+          style={[styles.row, isDeletingAccount && { opacity: 0.6 }]}
+          activeOpacity={0.7}
+          disabled={isDeletingAccount || !isSignedIn}
+          onPress={confirmDeleteAccount}
+        >
+          <Ionicons name="trash-outline" size={20} color={colors.danger} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowLabel, { color: colors.danger }]}>
+              {isDeletingAccount ? t("deletingAccount") : t("deleteAccount")}
+            </Text>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>{t("deleteAccountSubLabel")}</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{t("sectionAbout")}</Text>
