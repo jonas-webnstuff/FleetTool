@@ -165,7 +165,7 @@ export function useSupabase() {
         auth: {
           autoRefreshToken: false,
           persistSession: false,
-          detectSessionFromUrl: false,
+          detectSessionInUrl: false,
         },
       });
     },

@@ -143,7 +143,7 @@ export default function LocationsScreen() {
         <SectionList
           contentContainerStyle={styles.listContent}
           sections={locationSections}
-          keyExtractor={(item) => ("id" in item ? item.id : item.name)}
+          keyExtractor={(item) => ("id" in item ? String((item as { id: unknown }).id) : item.name)}
           ListHeaderComponent={
             <View>
               <View style={styles.titleRow}>

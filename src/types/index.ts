@@ -5,11 +5,14 @@ export type Vehicle = {
   name: string;
 };
 
+export type MembershipRole = "owner" | "admin" | "manager" | "field_user";
+
 export type Member = {
   id: string;       // clerk_user_id / membership UUID in Supabase
   fullName: string;
   email: string;
   clerkUserId?: string;
+  role?: MembershipRole;
 };
 
 export type FleetItem = {

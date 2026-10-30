@@ -55,8 +55,8 @@ export default function AddItemScreen() {
   const assignOptions = useMemo(
     () => (
       defaultItemLocationType === "vehicle"
-        ? ["vehicle", "person"]
-        : ["person", "vehicle"]
+        ? (["vehicle", "person"] as const)
+        : (["person", "vehicle"] as const)
     ),
     [defaultItemLocationType]
   );

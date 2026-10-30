@@ -255,14 +255,14 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
       return currentMembership.email.trim();
     }
 
-    const currentMembership = members.find((member) => member.id === currentMemberId);
+    const currentMember = members.find((member) => member.id === currentMemberId);
 
-    if (currentMembership?.fullName?.trim()) {
-      return currentMembership.fullName.trim();
+    if (currentMember?.fullName?.trim()) {
+      return currentMember.fullName.trim();
     }
 
-    if (currentMembership?.email?.trim()) {
-      return currentMembership.email.trim();
+    if (currentMember?.email?.trim()) {
+      return currentMember.email.trim();
     }
 
     return fallback;

@@ -73,11 +73,12 @@ export default function SignInScreen() {
         return;
       }
 
-      if (setOAuthActive) {
-        await setOAuthActive({ session: createdSessionId });
-      } else {
-        await setActive({ session: createdSessionId });
+      const activate = setOAuthActive ?? setActive;
+      if (!activate) {
+        setError(t("oauthCompleteError"));
+        return;
       }
+      await activate({ session: createdSessionId });
 
       await clearPendingMembershipLink();
       await clearPendingClerkNameSync();
@@ -97,6 +98,9 @@ export default function SignInScreen() {
   };
 
   const completeSignedInSession = async (createdSessionId: string) => {
+    if (!setActive) {
+      return;
+    }
     await setActive({ session: createdSessionId });
 
     const { error: syncError } = await supabase.rpc("sync_current_membership");
