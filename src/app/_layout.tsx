@@ -15,6 +15,7 @@ import { clearPendingClerkNameSync, getPendingClerkNameSync } from "@/lib/pendin
 import { clearPendingMembershipLink, getPendingMembershipLink } from "@/lib/pendingMembershipLink";
 import { clearMembershipLinkDebug, setMembershipLinkDebug } from "@/lib/membershipLinkDebug";
 import { decodeJwtHeader, decodeJwtPayload, getSupabaseTokenWithFallback, useSupabase } from "@/lib/supabase";
+import { WEB_APP_URL } from "@/lib/links";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -257,7 +258,31 @@ function AppStack() {
             ? [claimData as MembershipRpcRow]
             : [];
 
-        const claimedMembership = claimRows[0] ?? null;
+        let claimedMembership = claimRows[0] ?? null;
+
+        // The RPC only trusts the email claim inside the Supabase JWT. If that
+        // claim is missing it finds nothing, so let the web backend link the
+        // invite using the email Clerk has verified for this user.
+        if (!claimedMembership) {
+          try {
+            const sessionToken = await getToken();
+            if (sessionToken) {
+              const response = await fetch(`${WEB_APP_URL}/api/memberships/claim`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${sessionToken}` },
+              });
+              const body = response.ok ? (await response.json()) as { companyId?: string | null } : null;
+              if (body?.companyId) {
+                await setMembershipLinkDebug(`linked via web claim: ${body.companyId}`);
+                const { data: linkedRows } = await supabase.rpc("get_my_membership");
+                const rows = Array.isArray(linkedRows) ? linkedRows as MembershipRpcRow[] : [];
+                claimedMembership = rows[0] ?? null;
+              }
+            }
+          } catch (webClaimError) {
+            console.warn("web membership claim failed", webClaimError);
+          }
+        }
 
         if (!claimedMembership) {
           const { data: rpcMembership, error: rpcError } = await supabase.rpc("get_my_membership");
