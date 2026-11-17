@@ -8,7 +8,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "bundleIdentifier": "com.webnstuff.fleettool",
       "buildNumber": "1"
     },

@@ -193,7 +193,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
 
     Alert.alert(
       "Skrivskyddat läge",
-      "Organisationens abonnemang är inte aktivt. Du kan se allt, men inte göra ändringar förrän en admin har ordnat betalningen i webbportalen."
+      "Organisationen är skrivskyddad just nu. Du kan se allt, men inte göra ändringar. Kontakta din administratör."
     );
     return true;
   };
@@ -1476,7 +1476,7 @@ export function ItemsProvider({ children }: { children: ReactNode }) {
           if (error?.message?.includes("plan_limit_vehicles")) {
             Alert.alert(
               "Fordonsgränsen är nådd",
-              "Organisationens plan tillåter inte fler aktiva fordon. En admin kan uppgradera planen i webbportalen."
+              "Organisationen har nått gränsen för antal aktiva fordon. Kontakta din administratör."
             );
             return;
           }
